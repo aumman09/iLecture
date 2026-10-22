@@ -1,0 +1,334 @@
+// iLecture MFU — Prisma schema (mirrors PRD §5 DDL 1:1, snake_case tables/columns)
+// pgvector is used for semantic question clustering (questions.embedding vector(1536)).
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions", "driverAdapters", "queryCompiler"]
+  engineType      = "client" // Rust-free client (uses @prisma/adapter-pg)
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgcrypto, vector]
+}
+
+enum Role {
+  INSTRUCTOR
+  ADVISOR
+  STUDENT
+  ADMIN
+}
+
+enum SessionStatus {
+  LIVE
+  EXIT_TICKET
+  ENDED
+}
+
+enum PaceSignalType {
+  TOO_FAST
+  CLEAR
+  CONFUSED
+}
+
+enum BoardItemType {
+  STICKY_NOTE
+  DRAWING_PATH
+}
+
+enum RiskLevel {
+  LOW
+  MODERATE
+  CRITICAL
+}
+
+// 1. Users (Instructors, Advisors, Students)
+model User {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email              String   @unique @db.VarChar(150)
+  fullName           String   @map("full_name") @db.VarChar(150)
+  role               Role
+  studentId          String?  @unique @map("student_id") @db.VarChar(20)
+  googleAccessToken  String?  @map("google_access_token")
+  googleRefreshToken String?  @map("google_refresh_token")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  coursesTaught  Course[]        @relation("CourseInstructor")
+  sectionsTaught CourseSection[] @relation("SectionInstructor")
+  enrollments    Enrollment[]
+
+  @@map("users")
+}
+
+// 2. Courses (Synced with Google Classroom)
+model Course {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  googleClassroomId String?  @unique @map("google_classroom_id") @db.VarChar(100)
+  courseCode        String   @map("course_code") @db.VarChar(20)
+  courseNameEn      String   @map("course_name_en") @db.VarChar(255)
+  semester          String   @db.VarChar(20)
+  instructorId      String?  @map("instructor_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  instructor User?           @relation("CourseInstructor", fields: [instructorId], references: [id], onDelete: SetNull)
+  sections   CourseSection[]
+  slideDecks SlideDeck[]
+
+  @@map("courses")
+}
+
+// 3. Course Sections
+model CourseSection {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  courseId      String   @map("course_id") @db.Uuid
+  sectionNumber Int      @map("section_number")
+  instructorId  String?  @map("instructor_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  course      Course                     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  instructor  User?                      @relation("SectionInstructor", fields: [instructorId], references: [id], onDelete: Cascade)
+  enrollments Enrollment[]
+  sessions    ClassSession[]
+  riskMetrics StudentRiskMetric[]
+  evaluation  TeachingEvaluationMetric?
+
+  @@unique([courseId, sectionNumber])
+  @@map("course_sections")
+}
+
+// 4. Student Enrollments
+model Enrollment {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sectionId     String   @map("section_id") @db.Uuid
+  studentId     String   @map("student_id") @db.VarChar(20)
+  studentUserId String?  @map("student_user_id") @db.Uuid
+  advisorEmail  String?  @map("advisor_email") @db.VarChar(150)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  section     CourseSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  studentUser User?         @relation(fields: [studentUserId], references: [id], onDelete: Cascade)
+
+  @@unique([sectionId, studentId])
+  @@map("enrollments")
+}
+
+// 5. Slide Decks (Synced from Google Classroom Materials)
+model SlideDeck {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  courseId          String   @map("course_id") @db.Uuid
+  googleDriveFileId String   @unique @map("google_drive_file_id") @db.VarChar(150)
+  title             String   @db.VarChar(255)
+  fileUrl           String   @map("file_url")
+  totalPages        Int      @default(1) @map("total_pages")
+  isProcessed       Boolean  @default(false) @map("is_processed")
+  syncedAt          DateTime @default(now()) @map("synced_at") @db.Timestamptz
+
+  course    Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  metadata  SlideMetadata[]
+  sessions  ClassSession[]
+  questions Question[]
+
+  @@map("slide_decks")
+}
+
+// 6. AI Pre-Processed Slide Metadata (Page-by-Page)
+model SlideMetadata {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slideDeckId     String   @map("slide_deck_id") @db.Uuid
+  pageNumber      Int      @map("page_number")
+  category        String   @db.VarChar(50)
+  summary         String
+  difficultyLevel Int?     @map("difficulty_level")
+  keyTerms        String[] @map("key_terms")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  slideDeck SlideDeck @relation(fields: [slideDeckId], references: [id], onDelete: Cascade)
+
+  @@unique([slideDeckId, pageNumber])
+  @@map("slide_metadata")
+}
+
+// 7. Live Class Sessions
+model ClassSession {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sectionId        String        @map("section_id") @db.Uuid
+  slideDeckId      String?       @map("slide_deck_id") @db.Uuid
+  sessionTitle     String        @map("session_title") @db.VarChar(200)
+  sessionCode      String        @unique @map("session_code") @db.VarChar(10)
+  currentSlidePage Int           @default(1) @map("current_slide_page")
+  isBoardActive    Boolean       @default(false) @map("is_board_active")
+  isBoardFrozen    Boolean       @default(false) @map("is_board_frozen")
+  isSilentMode     Boolean       @default(true) @map("is_silent_mode")
+  status           SessionStatus @default(LIVE)
+  startedAt        DateTime      @default(now()) @map("started_at") @db.Timestamptz
+  endedAt          DateTime?     @map("ended_at") @db.Timestamptz
+
+  section       CourseSection       @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  slideDeck     SlideDeck?          @relation(fields: [slideDeckId], references: [id], onDelete: SetNull)
+  questions     Question[]
+  paceSignals   PaceSignal[]
+  boardItems    ClassBoardItem[]
+  feedbacks     MuddiestFeedback[]
+  aiSummary     SessionAiSummary?
+  attendances   SessionAttendance[]
+
+  @@map("class_sessions")
+}
+
+// 8. In-Class Questions (With Semantic Vector Embedding & Clustering)
+model Question {
+  id                     String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId              String                       @map("session_id") @db.Uuid
+  slideDeckId            String?                      @map("slide_deck_id") @db.Uuid
+  slidePage              Int                          @default(1) @map("slide_page")
+  studentId              String                       @map("student_id") @db.VarChar(20)
+  displayPseudonym       String                       @map("display_pseudonym") @db.VarChar(60)
+  rawContent             String                       @map("raw_content")
+  polishedContent        String                       @map("polished_content")
+  embedding              Unsupported("vector(1536)")?
+  parentClusterId        String?                      @map("parent_cluster_id") @db.Uuid
+  clusterSize            Int                          @default(1) @map("cluster_size")
+  upvoteCount            Int                          @default(1) @map("upvote_count")
+  isPinned               Boolean                      @default(false) @map("is_pinned")
+  isAnswered             Boolean                      @default(false) @map("is_answered")
+  isFlaggedInappropriate Boolean                      @default(false) @map("is_flagged_inappropriate")
+  createdAt              DateTime                     @default(now()) @map("created_at") @db.Timestamptz
+
+  session   ClassSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  slideDeck SlideDeck?       @relation(fields: [slideDeckId], references: [id], onDelete: SetNull)
+  parent    Question?        @relation("QuestionCluster", fields: [parentClusterId], references: [id], onDelete: SetNull)
+  children  Question[]       @relation("QuestionCluster")
+  upvotes   QuestionUpvote[]
+
+  @@index([sessionId, parentClusterId])
+  @@map("questions")
+}
+
+// 9. Question Upvotes (1 vote per student per question)
+model QuestionUpvote {
+  questionId String   @map("question_id") @db.Uuid
+  studentId  String   @map("student_id") @db.VarChar(20)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@id([questionId, studentId])
+  @@map("question_upvotes")
+}
+
+// 10. Real-Time Pace & Confusion Signals
+model PaceSignal {
+  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId  String         @map("session_id") @db.Uuid
+  slidePage  Int            @map("slide_page")
+  studentId  String         @map("student_id") @db.VarChar(20)
+  signalType PaceSignalType @map("signal_type")
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz
+
+  session ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, slidePage, studentId])
+  @@map("pace_signals")
+}
+
+// 11. Collaborative Class Board Items (Canvas Paths & Sticky Notes)
+model ClassBoardItem {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId        String        @map("session_id") @db.Uuid
+  slidePage        Int           @map("slide_page")
+  studentId        String        @map("student_id") @db.VarChar(20)
+  displayPseudonym String        @map("display_pseudonym") @db.VarChar(60)
+  itemType         BoardItemType @map("item_type")
+  payloadJson      Json          @map("payload_json")
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  session ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, slidePage])
+  @@map("class_board_items")
+}
+
+// 12. Post-Class Muddiest Point Feedbacks (Exit Tickets)
+model MuddiestFeedback {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId           String   @map("session_id") @db.Uuid
+  studentId           String   @map("student_id") @db.VarChar(20)
+  comprehensionRating Int      @map("comprehension_rating")
+  muddiestText        String   @map("muddiest_text")
+  extractedTopic      String?  @map("extracted_topic") @db.VarChar(120)
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  session ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, studentId])
+  @@map("muddiest_feedbacks")
+}
+
+// 13. Session AI Summary (Generated after session ends)
+model SessionAiSummary {
+  id                     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId              String   @unique @map("session_id") @db.Uuid
+  topMuddiestTopics      Json     @map("top_muddiest_topics")
+  mostConfusingSlidePage Int?     @map("most_confusing_slide_page")
+  avgComprehension       Decimal? @map("avg_comprehension") @db.Decimal(3, 2)
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  session ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("session_ai_summaries")
+}
+
+// 14. Early Warning Student Risk Metrics
+model StudentRiskMetric {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sectionId              String    @map("section_id") @db.Uuid
+  studentId              String    @map("student_id") @db.VarChar(20)
+  attendanceRate         Decimal   @default(100.00) @map("attendance_rate") @db.Decimal(5, 2)
+  engagementRate         Decimal   @default(100.00) @map("engagement_rate") @db.Decimal(5, 2)
+  avgComprehensionRating Decimal   @default(5.00) @map("avg_comprehension_rating") @db.Decimal(3, 2)
+  consecutiveLowRatings  Int       @default(0) @map("consecutive_low_ratings")
+  confusionSignalCount   Int       @default(0) @map("confusion_signal_count")
+  riskScore              Decimal   @default(0.00) @map("risk_score") @db.Decimal(5, 2)
+  riskLevel              RiskLevel @map("risk_level")
+  interventionSentAt     DateTime? @map("intervention_sent_at") @db.Timestamptz
+  lastEvaluatedAt        DateTime  @default(now()) @map("last_evaluated_at") @db.Timestamptz
+
+  section CourseSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@unique([sectionId, studentId])
+  @@map("student_risk_metrics")
+}
+
+// 15. Teaching Evaluation & QA Export Metrics (Module F)
+model TeachingEvaluationMetric {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sectionId              String    @unique @map("section_id") @db.Uuid
+  instructorEmail        String    @map("instructor_email") @db.VarChar(150)
+  totalSessionsHeld      Int       @default(0) @map("total_sessions_held")
+  clarityIndex           Decimal   @default(0.00) @map("clarity_index") @db.Decimal(3, 2)
+  responsivenessIndex    Decimal   @default(0.00) @map("responsiveness_index") @db.Decimal(5, 2)
+  emiDeliveryScore       Decimal   @default(0.00) @map("emi_delivery_score") @db.Decimal(3, 2)
+  topStrengths           Json      @default("[]") @map("top_strengths")
+  actionableImprovements Json      @default("[]") @map("actionable_improvements")
+  syncedToCentralEval    Boolean   @default(false) @map("synced_to_central_eval")
+  syncedAt               DateTime? @map("synced_at") @db.Timestamptz
+  updatedAt              DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  section CourseSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@map("teaching_evaluation_metrics")
+}
+
+// 16. (Extension) Attendance per session — feeds AttendanceRate / EngagementRate in the risk engine.
+//     A row is written the first time a student joins a live session (QR scan / link open).
+model SessionAttendance {
+  sessionId String   @map("session_id") @db.Uuid
+  studentId String   @map("student_id") @db.VarChar(20)
+  joinedAt  DateTime @default(now()) @map("joined_at") @db.Timestamptz
+
+  session ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@id([sessionId, studentId])
+  @@map("session_attendances")
+}

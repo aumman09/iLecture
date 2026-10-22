@@ -1,0 +1,62 @@
+{
+  "name": "ilecture-mfu",
+  "version": "2.0.0",
+  "private": true,
+  "description": "iLecture MFU — Zero-Click Smart Classroom, Live Backchannel & Early Warning Retention System",
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false --ignore ./src/app --ignore ./src/components server.ts",
+    "build": "next build",
+    "start": "NODE_ENV=production tsx server.ts",
+    "worker": "tsx src/server/workers/index.ts",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:reset": "prisma migrate reset --force",
+    "setup": "node scripts/copy-pdf-worker.mjs && prisma generate",
+    "postinstall": "node scripts/copy-pdf-worker.mjs && prisma generate"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.3",
+    "@prisma/adapter-pg": "6.19.3",
+    "pg": "8.13.1",
+    "@socket.io/redis-adapter": "8.3.0",
+    "bullmq": "5.34.10",
+    "clsx": "2.1.1",
+    "googleapis": "144.0.0",
+    "ioredis": "5.4.2",
+    "lucide-react": "0.468.0",
+    "next": "14.2.35",
+    "next-auth": "4.24.11",
+    "openai": "4.77.0",
+    "pdf-lib": "1.17.1",
+    "pdf-parse": "1.1.1",
+    "pdfjs-dist": "4.4.168",
+    "qrcode.react": "4.2.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "socket.io": "4.8.1",
+    "socket.io-client": "4.8.1",
+    "tailwind-merge": "2.6.0",
+    "tsx": "4.19.2",
+    "zod": "3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "20.17.10",
+    "@types/pdf-parse": "1.1.4",
+    "@types/react": "18.3.18",
+    "@types/react-dom": "18.3.5",
+    "autoprefixer": "10.4.20",
+    "eslint": "8.57.1",
+    "eslint-config-next": "14.2.35",
+    "postcss": "8.4.49",
+    "prisma": "6.19.3",
+    "@types/pg": "8.11.10",
+    "tailwindcss": "3.4.17",
+    "typescript": "5.7.2"
+  }
+}

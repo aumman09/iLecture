@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --mfu: #990000;
+  --mfu-hover: #7f1d1d;
+  --gold: #d97706;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html, body { height: 100%; }
+body {
+  background: #f8fafc;
+  color: #0f172a;
+  font-family: "Inter", "IBM Plex Sans Thai", ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Buttons never trigger double-tap zoom on iPad / iPhone */
+button, a, [role="button"], input, textarea, label { touch-action: manipulation; }
+
+@layer utilities {
+  .pt-safe { padding-top: max(var(--safe-top), 0px); }
+  .pb-safe { padding-bottom: max(var(--safe-bottom), 0px); }
+  .pb-safe-2 { padding-bottom: calc(var(--safe-bottom) + 0.5rem); }
+  .h-dvh-screen { height: 100vh; height: 100dvh; }
+  .min-h-dvh-screen { min-height: 100vh; min-height: 100dvh; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { scrollbar-width: none; }
+  .select-none-touch { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+}
+
+.font-mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
