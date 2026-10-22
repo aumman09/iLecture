@@ -9,6 +9,7 @@ import { parse } from "url";
 import next from "next";
 import { attachSocketServer } from "./src/server/socket-server";
 import { startWorkers } from "./src/server/workers/start";
+import { ensureRedisOrFallback } from "./src/lib/redis";
 
 const dev = process.env.NODE_ENV !== "production";
 const port = Number(process.env.PORT || 3000);
@@ -17,7 +18,7 @@ const hostname = process.env.HOSTNAME || "0.0.0.0";
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
 
-app.prepare().then(() => {
+Promise.all([app.prepare(), ensureRedisOrFallback()]).then(() => {
   const server = createServer((req, res) => handle(req, res, parse(req.url!, true)));
   attachSocketServer(server);
   if (process.env.RUN_WORKERS_IN_SERVER !== "false") startWorkers();

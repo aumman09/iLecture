@@ -3,7 +3,10 @@ const bool = (v: string | undefined, d = false) => (v === undefined || v === "" 
 
 export const env = {
   databaseUrl: process.env.DATABASE_URL ?? "",
-  redisUrl: process.env.REDIS_URL?.trim() || "",
+  // read lazily: server.ts may disable Redis at startup if it is unreachable
+  get redisUrl() {
+    return process.env.REDIS_URL?.trim() || "";
+  },
   appUrl: (process.env.NEXTAUTH_URL ?? "http://localhost:3000").replace(/\/$/, ""),
   nextAuthSecret: process.env.NEXTAUTH_SECRET ?? "dev-insecure-secret",
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",

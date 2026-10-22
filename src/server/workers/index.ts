@@ -5,4 +5,5 @@
  */
 import "../load-env";
 import { startWorkers } from "./start";
-startWorkers();
+import { ensureRedisOrFallback } from "@/lib/redis";
+ensureRedisOrFallback().then(() => startWorkers());
