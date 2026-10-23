@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { createHash } from "crypto";
 import { env } from "./env";
+import { moderateText } from "./moderation";
 import type { MuddiestTopic, SlideMetadataDTO } from "@/types";
 
 /**
@@ -84,13 +85,9 @@ export function heuristicPolish(raw: string): string {
 }
 
 // ───────────────────────────── Moderation ─────────────────────────────
-const BLOCKLIST = [
-  "fuck", "shit", "bitch", "asshole", "dick", "cunt", "bastard", "slut", "whore", "nigg",
-  "ควย", "เหี้ย", "สัส", "มึง", "กู", "เย็ด", "หี", "แม่ง", "ไอ้สัตว์", "ชิบหาย",
-];
+
 export async function moderate(text: string): Promise<{ flagged: boolean; reason?: string }> {
-  const lower = text.toLowerCase();
-  if (BLOCKLIST.some((w) => lower.includes(w))) return { flagged: true, reason: "profanity" };
+  if (moderateText(text)) return { flagged: true, reason: "profanity" };
   const c = client();
   if (c && !env.openaiBaseUrl) {
     try {

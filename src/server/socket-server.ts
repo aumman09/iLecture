@@ -9,11 +9,12 @@ import { generatePseudonym } from "@/lib/pseudonym";
 import { enqueue, promote } from "@/lib/queue";
 import { removeUpvote, upvoteQuestion } from "@/lib/question-service";
 import {
-  STAFF_BOARD_ID, boardItems, buildSessionState, canControl, getSessionByCode, listQuestions, markAttendance,
+  STAFF_BOARD_ID, boardItems, boardPage, buildSessionState, canControl, getSessionByCode, listQuestions, markAttendance,
   metadataFor, paceStats, placeSticky, type FullSession,
 } from "@/lib/session-service";
 import type { AppUser } from "@/lib/auth";
 import type { PaceSignal, StickyColor, Stroke } from "@/types";
+import { moderateText } from "@/lib/moderation";
 import { EMIT_CHANNEL, NAMESPACE, roomAll, roomInstructor, roomStudent, setIO } from "./realtime";
 
 /**
@@ -171,7 +172,7 @@ export function attachSocketServer(httpServer: HttpServer) {
       const viewer = { role: user.role, studentId: user.studentId };
       const [questions, board, pace] = await Promise.all([
         listQuestions(s.id, viewer),
-        s.isBoardActive ? boardItems(s.id, s.currentSlidePage) : Promise.resolve(null),
+        s.isBoardActive ? boardItems(s.id, boardPage(s), { studentId: user.studentId, isController }) : Promise.resolve(null),
         isController ? paceStats(s.id, s.currentSlidePage) : Promise.resolve(null),
       ]);
       ack({ ok: true, state, questions, board, pace });
@@ -189,19 +190,31 @@ export function attachSocketServer(httpServer: HttpServer) {
       ack({ ok: true, slidePage: page });
     }));
 
-    socket.on("instructor:board_toggle", wrap<{ sessionCode: string; isActive: boolean; isFrozen?: boolean }>(async (p, ack) => {
+    socket.on("instructor:board_toggle", wrap<{ sessionCode: string; isActive: boolean; isFrozen?: boolean; mode?: "SLIDE" | "IDEAS"; prompt?: string | null }>(async (p, ack) => {
       const s = await ctx(p.sessionCode, { control: true });
       const isActive = !!p.isActive;
       const isFrozen = isActive ? !!p.isFrozen : false;
-      await prisma.classSession.update({ where: { id: s.id }, data: { isBoardActive: isActive, isBoardFrozen: isFrozen } });
-      patchCache(s.sessionCode, { isBoardActive: isActive, isBoardFrozen: isFrozen });
-      nsp.to(roomAll(s.sessionCode)).emit("board:state_changed", { isActive, isFrozen, slidePage: s.currentSlidePage });
+      const mode = p.mode === "IDEAS" || p.mode === "SLIDE" ? p.mode : s.boardMode;
+      const prompt = p.prompt === undefined ? s.boardPrompt : p.prompt ? String(p.prompt).trim().slice(0, 200) || null : null;
+      await prisma.classSession.update({ where: { id: s.id }, data: { isBoardActive: isActive, isBoardFrozen: isFrozen, boardMode: mode, boardPrompt: prompt } });
+      patchCache(s.sessionCode, { isBoardActive: isActive, isBoardFrozen: isFrozen, boardMode: mode, boardPrompt: prompt });
+      const page = boardPage({ boardMode: mode, currentSlidePage: s.currentSlidePage });
+      nsp.to(roomAll(s.sessionCode)).emit("board:state_changed", { isActive, isFrozen, mode, prompt, slidePage: page });
+      ack({ ok: true });
+    }));
+
+    socket.on("instructor:board_prompt", wrap<{ sessionCode: string; prompt: string | null }>(async (p, ack) => {
+      const s = await ctx(p.sessionCode, { control: true });
+      const prompt = p.prompt ? String(p.prompt).trim().slice(0, 200) || null : null;
+      await prisma.classSession.update({ where: { id: s.id }, data: { boardPrompt: prompt } });
+      patchCache(s.sessionCode, { boardPrompt: prompt });
+      nsp.to(roomAll(s.sessionCode)).emit("board:prompt", { prompt });
       ack({ ok: true });
     }));
 
     socket.on("instructor:board_clear", wrap<{ sessionCode: string; slidePage: number }>(async (p, ack) => {
       const s = await ctx(p.sessionCode, { control: true });
-      const page = Number(p.slidePage) || s.currentSlidePage;
+      const page = p.slidePage === undefined || p.slidePage === null ? boardPage(s) : Number(p.slidePage);
       await prisma.classBoardItem.deleteMany({ where: { sessionId: s.id, slidePage: page } });
       nsp.to(roomAll(s.sessionCode)).emit("board:cleared", { slidePage: page });
       ack({ ok: true });
@@ -281,7 +294,8 @@ export function attachSocketServer(httpServer: HttpServer) {
     // ── collaborative board ─────────────────────────────────────────────
     socket.on("board:fetch", wrap<{ sessionCode: string; slidePage?: number }>(async (p, ack) => {
       const s = await ctx(p.sessionCode);
-      ack({ ok: true, board: await boardItems(s.id, Number(p.slidePage) || s.currentSlidePage) });
+      const page = p.slidePage === undefined || p.slidePage === null ? boardPage(s) : Number(p.slidePage);
+      ack({ ok: true, board: await boardItems(s.id, page, { studentId: user.studentId, isController: !!data.isController }) });
     }));
 
     socket.on("board:draw_stroke", wrap<{ sessionCode: string; slidePage: number; stroke: Stroke }>(async (p, ack) => {
@@ -296,7 +310,7 @@ export function attachSocketServer(httpServer: HttpServer) {
       if (points.length < 1) throw new Error("Empty stroke");
       const color = /^#[0-9a-f]{3,8}$/i.test(String(p.stroke.color)) ? String(p.stroke.color) : "#0F172A";
       const width = Math.min(0.03, Math.max(0.001, Number(p.stroke.width) || 0.004));
-      const page = s.currentSlidePage;
+      const page = boardPage(s);
       const sid = data.isController ? STAFF_BOARD_ID : user.studentId!;
       const pseudonym = data.isController ? "Instructor" : generatePseudonym(s.id, sid);
       const item = await prisma.classBoardItem.create({
@@ -309,10 +323,11 @@ export function attachSocketServer(httpServer: HttpServer) {
     socket.on("board:undo", wrap<{ sessionCode: string }>(async (p, ack) => {
       const s = await ctx(p.sessionCode, { live: true });
       const sid = data.isController ? STAFF_BOARD_ID : user.studentId!;
-      const last = await prisma.classBoardItem.findFirst({ where: { sessionId: s.id, slidePage: s.currentSlidePage, studentId: sid }, orderBy: { createdAt: "desc" } });
+      const page = boardPage(s);
+      const last = await prisma.classBoardItem.findFirst({ where: { sessionId: s.id, slidePage: page, studentId: sid }, orderBy: { createdAt: "desc" } });
       if (!last) return ack({ ok: true, removed: null });
       await prisma.classBoardItem.delete({ where: { id: last.id } });
-      nsp.to(roomAll(s.sessionCode)).emit("board:item_removed", { id: last.id, slidePage: s.currentSlidePage });
+      nsp.to(roomAll(s.sessionCode)).emit("board:item_removed", { id: last.id, slidePage: page });
       ack({ ok: true, removed: last.id });
     }));
 
@@ -321,20 +336,54 @@ export function attachSocketServer(httpServer: HttpServer) {
       const s = await ctx(p.sessionCode, { live: true });
       if (!s.isBoardActive) throw new Error("Board is closed");
       if (s.isBoardFrozen && !data.isController) throw new Error("Board is frozen");
-      const text = String(p.text ?? "").trim().slice(0, 140);
+      const page = boardPage(s);
+      const ideas = page === 0;
+      const text = String(p.text ?? "").trim().slice(0, ideas ? 280 : 140);
       if (!text) throw new Error("Empty note");
+      if (ideas && !data.isController && moderateText(text)) throw new Error("Please keep it respectful 🙏");
       const color: StickyColor = ["amber", "blue", "emerald", "rose"].includes(p.color) ? p.color : "amber";
-      const page = s.currentSlidePage;
-      const existing = await prisma.classBoardItem.findMany({ where: { sessionId: s.id, slidePage: page, itemType: "STICKY_NOTE" }, select: { payloadJson: true } });
-      const pos = placeSticky(existing.map((e) => e.payloadJson as { x: number; y: number }));
+      const pos = ideas
+        ? { x: 0, y: 0 } // the Idea Board lays notes out as a wall, not by coordinates
+        : placeSticky((await prisma.classBoardItem.findMany({ where: { sessionId: s.id, slidePage: page, itemType: "STICKY_NOTE" }, select: { payloadJson: true } })).map((e) => e.payloadJson as { x: number; y: number }));
       const sid = data.isController ? STAFF_BOARD_ID : user.studentId!;
       const pseudonym = data.isController ? "Instructor" : generatePseudonym(s.id, sid);
       const item = await prisma.classBoardItem.create({
         data: { sessionId: s.id, slidePage: page, studentId: sid, displayPseudonym: pseudonym, itemType: "STICKY_NOTE", payloadJson: { text, color, ...pos } },
       });
-      const payload = { id: item.id, slidePage: page, text, color, ...pos, displayPseudonym: pseudonym };
+      const payload = { id: item.id, slidePage: page, text, color, ...pos, displayPseudonym: pseudonym, likeCount: 0, createdAt: item.createdAt.toISOString() };
       nsp.to(roomAll(s.sessionCode)).emit("board:sticky_broadcast", payload);
-      ack({ ok: true, sticky: payload });
+      ack({ ok: true, sticky: { ...payload, mine: true } });
+    }));
+
+    // ♥ on an Idea Board note — one per student, atomic in SQL; student ids never leave the server
+    socket.on("board:like", wrap<{ sessionCode: string; itemId: string; remove?: boolean }>(async (p, ack) => {
+      if (!allow(socket, 2)) throw new Error("Slow down");
+      const s = await ctx(p.sessionCode, { live: true });
+      const who = data.isController ? STAFF_BOARD_ID : user.studentId;
+      if (!who) throw new Error("Not allowed");
+      const rows = p.remove
+        ? await prisma.$queryRawUnsafe<{ n: number }[]>(
+            `UPDATE class_board_items SET payload_json = jsonb_set(payload_json, '{likedBy}', COALESCE((SELECT jsonb_agg(v) FROM jsonb_array_elements(payload_json->'likedBy') v WHERE v <> to_jsonb($2::text)), '[]'::jsonb))
+              WHERE id = $1::uuid AND session_id = $3::uuid AND COALESCE(payload_json->'likedBy','[]'::jsonb) ? $2
+              RETURNING jsonb_array_length(payload_json->'likedBy') AS n`, String(p.itemId), who, s.id)
+        : await prisma.$queryRawUnsafe<{ n: number }[]>(
+            `UPDATE class_board_items SET payload_json = jsonb_set(payload_json, '{likedBy}', COALESCE(payload_json->'likedBy','[]'::jsonb) || to_jsonb($2::text))
+              WHERE id = $1::uuid AND session_id = $3::uuid AND item_type = 'STICKY_NOTE' AND NOT (COALESCE(payload_json->'likedBy','[]'::jsonb) ? $2)
+              RETURNING jsonb_array_length(payload_json->'likedBy') AS n`, String(p.itemId), who, s.id);
+      if (rows[0]) nsp.to(roomAll(s.sessionCode)).emit("board:liked", { id: p.itemId, likeCount: Number(rows[0].n) });
+      ack({ ok: true, likeCount: rows[0] ? Number(rows[0].n) : null });
+    }));
+
+    // delete one note: its author, or the instructor (moderation)
+    socket.on("board:delete_item", wrap<{ sessionCode: string; itemId: string }>(async (p, ack) => {
+      const s = await ctx(p.sessionCode, { live: true });
+      const item = await prisma.classBoardItem.findFirst({ where: { id: String(p.itemId), sessionId: s.id } });
+      if (!item) throw new Error("Not found");
+      const sid = data.isController ? STAFF_BOARD_ID : user.studentId;
+      if (!data.isController && item.studentId !== sid) throw new Error("You can only delete your own note");
+      await prisma.classBoardItem.delete({ where: { id: item.id } });
+      nsp.to(roomAll(s.sessionCode)).emit("board:item_removed", { id: item.id, slidePage: item.slidePage });
+      ack({ ok: true });
     }));
 
     socket.on("disconnect", () => {

@@ -10,6 +10,7 @@ import { PaceBar } from "./PaceBar";
 import { LiveQuestionFeed, animalOf } from "./LiveQuestionFeed";
 import { QuestionForm, type AskResult } from "./QuestionForm";
 import { StudentBoardPad } from "./StudentBoardPad";
+import { StudentIdeaBoard } from "./StudentIdeaBoard";
 import { ExitTicketModal } from "./ExitTicketModal";
 import type { PaceSignal, QuestionDTO, SlideMetadataDTO } from "@/types";
 
@@ -39,7 +40,7 @@ export function StudentApp({ sessionCode, studentName, slides }: { sessionCode: 
   const confusedRef = useRef<Set<number>>(new Set());
 
   const live = useLiveSession(sessionCode, {
-    onBoardToggled: (active) => { if (active) { navigator.vibrate?.(30); push({ title: "Class Board is open ✏️", body: "Draw or post a sticky note." }); } },
+    onBoardToggled: (active) => { if (active) { navigator.vibrate?.(30); push({ title: "Class Board is open ✏️", body: "Share your ideas with the class." }); } },
     onSlideChanged: () => setBrowsePage(null),
     onExitTicket: () => navigator.vibrate?.([30, 60, 30]),
   });
@@ -145,7 +146,22 @@ export function StudentApp({ sessionCode, studentName, slides }: { sessionCode: 
         )}
       </header>
 
-      {state.isBoardActive ? (
+      {state.isBoardActive && state.boardMode === "IDEAS" ? (
+        <div className="min-h-0 flex-1">
+          <StudentIdeaBoard
+            prompt={state.boardPrompt}
+            notes={stickies}
+            frozen={state.isBoardFrozen}
+            onPost={async (text, color) => {
+              const r = await actions.addSticky(text, color);
+              if (!r.ok) push({ title: r.error ?? "Not posted", tone: "error" });
+              return r.ok;
+            }}
+            onLike={(id, remove) => actions.likeNote(id, remove)}
+            onDelete={(id) => actions.deleteNote(id)}
+          />
+        </div>
+      ) : state.isBoardActive ? (
         <div className="min-h-0 flex-1">
           <StudentBoardPad
             slideUrl={slideUrl}

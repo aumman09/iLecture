@@ -1,15 +1,24 @@
 "use client";
-import { BellOff, BellRing, ChevronLeft, ChevronRight, MessagesSquare, PenLine, Presentation, Power } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { BellOff, BellRing, ChevronLeft, ChevronRight, Lightbulb, MessagesSquare, PenLine, Presentation, Power } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 /** Bottom Zero-Click control bar (dark pill). Everything the instructor needs during a lecture. */
 export function FloatingDock({
-  page, total, onPrev, onNext, boardActive, onToggleBoard, silent, onToggleSilent, qaCount, onOpenQA, onEnd, ending, disabled,
+  page, total, onPrev, onNext, boardActive, onOpenBoard, onCloseBoard, silent, onToggleSilent, qaCount, onOpenQA, onEnd, ending, disabled,
 }: {
   page: number; total: number; onPrev: () => void; onNext: () => void;
-  boardActive: boolean; onToggleBoard: () => void; silent: boolean; onToggleSilent: () => void;
+  boardActive: boolean; onOpenBoard: (mode: "SLIDE" | "IDEAS") => void; onCloseBoard: () => void; silent: boolean; onToggleSilent: () => void;
   qaCount: number; onOpenQA: () => void; onEnd: () => void; ending?: boolean; disabled?: boolean;
 }) {
+  const [menu, setMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menu) return;
+    const close = (e: MouseEvent) => { if (!menuRef.current?.contains(e.target as Node)) setMenu(false); };
+    window.addEventListener("mousedown", close);
+    return () => window.removeEventListener("mousedown", close);
+  }, [menu]);
   const btn = "flex h-12 items-center gap-2 rounded-xl px-3.5 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-800 active:bg-slate-700 disabled:opacity-40";
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0 flex h-20 items-center justify-center pb-3">
@@ -18,10 +27,29 @@ export function FloatingDock({
         <span className="min-w-[88px] select-none text-center font-mono text-sm text-white">Slide {page} / {total}</span>
         <button className={cn(btn, "px-2.5")} onClick={onNext} disabled={disabled || page >= total} title="Next slide (→ / Space)"><ChevronRight className="h-5 w-5" /></button>
         <span className="mx-1 h-8 w-px bg-slate-700" />
-        <button className={cn(btn, boardActive && "bg-amber-500/20 text-amber-300 hover:bg-amber-500/30")} onClick={onToggleBoard} disabled={disabled} title="Toggle class board (B)">
-          {boardActive ? <Presentation className="h-5 w-5" /> : <PenLine className="h-5 w-5" />}
-          <span className="hidden lg:inline">{boardActive ? "Back to Slides" : "Open Class Board"}</span>
-        </button>
+        <div className="relative" ref={menuRef}>
+          <button
+            className={cn(btn, boardActive && "bg-amber-500/20 text-amber-300 hover:bg-amber-500/30")}
+            onClick={() => (boardActive ? onCloseBoard() : setMenu((m) => !m))}
+            disabled={disabled}
+            title={boardActive ? "Back to slides (B)" : "Open class board (B = on slide, I = Idea Board)"}
+          >
+            {boardActive ? <Presentation className="h-5 w-5" /> : <PenLine className="h-5 w-5" />}
+            <span className="hidden lg:inline">{boardActive ? "Back to Slides" : "Open Class Board"}</span>
+          </button>
+          {menu && !boardActive && (
+            <div className="absolute bottom-full left-1/2 mb-3 w-72 -translate-x-1/2 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 text-left shadow-2xl animate-fade-in-down">
+              <button onClick={() => { setMenu(false); onOpenBoard("SLIDE"); }} className="flex w-full items-start gap-3 rounded-xl p-3 hover:bg-slate-50">
+                <PenLine className="mt-0.5 h-5 w-5 text-mfu" />
+                <span><span className="block text-sm font-semibold text-slate-900">Draw on this slide</span><span className="block text-xs text-slate-500">Everyone annotates slide {page} + sticky notes</span></span>
+              </button>
+              <button onClick={() => { setMenu(false); onOpenBoard("IDEAS"); }} className="flex w-full items-start gap-3 rounded-xl p-3 hover:bg-slate-50">
+                <Lightbulb className="mt-0.5 h-5 w-5 text-amber-500" />
+                <span><span className="block text-sm font-semibold text-slate-900">Blank Idea Board</span><span className="block text-xs text-slate-500">บอร์ดว่าง ให้ทั้งคลาสโพสต์ความคิดเห็น + กด ♥</span></span>
+              </button>
+            </div>
+          )}
+        </div>
         <button className={cn(btn, !silent && "text-emerald-300")} onClick={onToggleSilent} title="Silent focus mode (S)">
           {silent ? <BellOff className="h-5 w-5" /> : <BellRing className="h-5 w-5" />}
           <span className="hidden lg:inline">Silent {silent ? "ON" : "OFF"}</span>

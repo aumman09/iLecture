@@ -36,8 +36,16 @@ export interface Stroke {
   width: number; // relative to canvas width (e.g. 0.004)
 }
 
+export type BoardMode = "SLIDE" | "IDEAS";
+/** Board items of the blank Idea Board are stored with slidePage = 0. */
+export const IDEA_BOARD_PAGE = 0;
+
 export interface StickyNote {
   id: string;
+  likeCount?: number;
+  likedByMe?: boolean;
+  mine?: boolean;
+  createdAt?: string;
   slidePage: number;
   text: string;
   color: StickyColor;
@@ -75,6 +83,8 @@ export interface SessionStateDTO {
   isBoardActive: boolean;
   isBoardFrozen: boolean;
   isSilentMode: boolean;
+  boardMode: BoardMode;
+  boardPrompt: string | null;
   courseCode: string;
   courseName: string;
   activeCount: number;

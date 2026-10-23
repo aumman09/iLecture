@@ -13,6 +13,7 @@ import { FloatingDock } from "./FloatingDock";
 import { QADrawer } from "./QADrawer";
 import { SlideViewer } from "./SlideViewer";
 import { ClassBoardCanvas } from "./ClassBoardCanvas";
+import { IdeaWall } from "./IdeaWall";
 import type { MuddiestTopic } from "@/types";
 
 /** ZERO-CLICK TEACHING CONSOLE — slides + board + dock, nothing else. */
@@ -47,7 +48,8 @@ export function LiveConsole({ sessionCode, joinUrl, sessionId }: { sessionCode: 
       if (!state || state.status !== "LIVE") return;
       if (["ArrowRight", "PageDown", " ", "ArrowDown"].includes(e.key)) { e.preventDefault(); actions.gotoSlide(page + 1); }
       else if (["ArrowLeft", "PageUp", "ArrowUp"].includes(e.key)) { e.preventDefault(); actions.gotoSlide(page - 1); }
-      else if (e.key.toLowerCase() === "b") actions.toggleBoard(!state.isBoardActive);
+      else if (e.key.toLowerCase() === "b") (state.isBoardActive ? actions.toggleBoard(false) : actions.toggleBoard(true, false, "SLIDE"));
+      else if (e.key.toLowerCase() === "i") (state.isBoardActive ? actions.toggleBoard(false) : actions.toggleBoard(true, false, "IDEAS"));
       else if (e.key.toLowerCase() === "q") (qaOpen ? setQaOpen(false) : openQA());
       else if (e.key.toLowerCase() === "s") actions.setSilent(!state.isSilentMode);
       else if (e.key.toLowerCase() === "f") toggleFullscreen();
@@ -110,7 +112,19 @@ export function LiveConsole({ sessionCode, joinUrl, sessionId }: { sessionCode: 
 
       {/* Main stage */}
       <main className="relative min-h-0 flex-1 p-4 pb-24">
-        {state.isBoardActive ? (
+        {state.isBoardActive && state.boardMode === "IDEAS" ? (
+          <IdeaWall
+            notes={stickies}
+            prompt={state.boardPrompt}
+            frozen={state.isBoardFrozen}
+            sessionCode={state.sessionCode}
+            onPrompt={(p) => actions.setBoardPrompt(p)}
+            onFreeze={(f) => actions.toggleBoard(true, f)}
+            onClear={() => actions.clearBoard()}
+            onDelete={(id) => actions.deleteNote(id)}
+            onLike={(id, remove) => actions.likeNote(id, remove)}
+          />
+        ) : state.isBoardActive ? (
           <ClassBoardCanvas
             slideUrl={slideUrl}
             page={page}
@@ -143,7 +157,8 @@ export function LiveConsole({ sessionCode, joinUrl, sessionId }: { sessionCode: 
           onPrev={() => actions.gotoSlide(page - 1)}
           onNext={() => actions.gotoSlide(page + 1)}
           boardActive={state.isBoardActive}
-          onToggleBoard={() => actions.toggleBoard(!state.isBoardActive)}
+          onOpenBoard={(mode) => actions.toggleBoard(true, false, mode)}
+          onCloseBoard={() => actions.toggleBoard(false)}
           silent={state.isSilentMode}
           onToggleSilent={() => actions.setSilent(!state.isSilentMode)}
           qaCount={unseen > 0 ? unseen : 0}

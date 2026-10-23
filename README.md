@@ -58,7 +58,10 @@ Phones must reach your computer over the same Wi-Fi:
 ### Instructor — Zero-Click console (`/live/[sessionId]`)
 - Dashboard → **Start live class** on a synced slide deck (1 click).
 - Full-screen slides + floating dock: `Prev / Slide X/Y / Next` · **Open Class Board** · **Silent mode** · **View Q&A (badge)** · **End Class**.
-- Keyboard / presentation clicker: `→ ← Space PageUp/PageDown` change slides, `B` board, `Q` Q&A, `S` silent, `F` full screen.
+- Keyboard / presentation clicker: `→ ← Space PageUp/PageDown` change slides, `B` board on slide, `I` Idea Board, `Q` Q&A, `S` silent, `F` full screen.
+- **Open Class Board** gives two choices:
+  - *Draw on this slide* — everyone annotates the current slide + sticky notes.
+  - *Blank Idea Board* (บอร์ดความคิดเห็น) — a blank class-wide wall: set a question, every student posts ideas from their phone, others tap ♥, sort by Newest / Most ♥, hide names, close posting, remove notes. Ideas are kept for the session. Shortcut: `I`.
 - Silent Focus Mode (default ON): new questions only bump the red badge; OFF shows a 3.5 s toast.
 - End Class → exit ticket on every phone → auto-closes after `EXIT_TICKET_WINDOW_SEC` (default 180 s) or as soon as everyone has answered → AI muddiest-point summary, risk scores and teaching evaluation are recalculated.
 
@@ -68,7 +71,7 @@ Phones must reach your computer over the same Wi-Fi:
 - **Pace bar**: 🐇 Too fast · 👍 Clear · 🤔 Confused — one tap, tap again to undo, resets each slide.
 - **Ask**: one-tap quick questions ("Could you give an example?"…) and "Explain ‹key term›" chips from the AI slide scan, or type in Thai — it is **auto-polished into academic English while typing**; one tap to send. Similar questions are merged (pgvector) and count as a vote.
 - **Vote**: one tap on ▲.
-- **Class Board** opens by itself: draw with finger / Apple Pencil or post a sticky note.
+- **Class Board** opens by itself: draw with finger / Apple Pencil or post a sticky note — or, on the **Idea Board**, type an idea → **Post** and ♥ classmates' ideas (one tap each).
 - **Exit ticket** opens by itself: ★ rating → tap the confusing slide (pre-selected from your 🤔 taps) → Submit.
 - Screen wake-lock, haptics, auto-reconnect, iPad landscape 2-column layout, safe-area (notch) aware, installable PWA.
 

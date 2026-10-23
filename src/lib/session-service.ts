@@ -2,9 +2,15 @@ import { prisma } from "./db";
 import { generatePseudonym } from "./pseudonym";
 import { env } from "./env";
 import type { AppUser } from "./auth";
+import { IDEA_BOARD_PAGE, type BoardMode } from "@/types";
 import type { BoardItemsDTO, PaceStats, QuestionDTO, SessionStateDTO, SlideMetadataDTO, StickyColor, Stroke } from "@/types";
 
 export const STAFF_BOARD_ID = "STAFF";
+
+/** Board "page" the class is currently writing on: the live slide, or 0 for the blank Idea Board. */
+export function boardPage(s: { boardMode: string; currentSlidePage: number }) {
+  return s.boardMode === "IDEAS" ? IDEA_BOARD_PAGE : s.currentSlidePage;
+}
 
 export async function getSessionByCode(code: string) {
   return prisma.classSession.findUnique({
@@ -42,6 +48,8 @@ export async function buildSessionState(s: FullSession, user: AppUser, activeCou
     isBoardActive: s.isBoardActive,
     isBoardFrozen: s.isBoardFrozen,
     isSilentMode: s.isSilentMode,
+    boardMode: (s.boardMode === "IDEAS" ? "IDEAS" : "SLIDE") as BoardMode,
+    boardPrompt: s.boardPrompt,
     courseCode: s.section.course.courseCode,
     courseName: s.section.course.courseNameEn,
     activeCount,
@@ -83,7 +91,7 @@ export async function paceStats(sessionId: string, slidePage: number): Promise<P
   return { slidePage, tooFastPct: pct(c.TOO_FAST), clearPct: pct(c.CLEAR), confusedPct: pct(c.CONFUSED), slideConfusionCount: c.CONFUSED || 0, total };
 }
 
-export async function boardItems(sessionId: string, slidePage: number): Promise<BoardItemsDTO> {
+export async function boardItems(sessionId: string, slidePage: number, viewer?: { studentId: string | null; isController: boolean }): Promise<BoardItemsDTO> {
   const items = await prisma.classBoardItem.findMany({ where: { sessionId, slidePage }, orderBy: { createdAt: "asc" } });
   const out: BoardItemsDTO = { slidePage, strokes: [], stickies: [] };
   for (const it of items) {
@@ -91,7 +99,14 @@ export async function boardItems(sessionId: string, slidePage: number): Promise<
     if (it.itemType === "DRAWING_PATH") {
       out.strokes.push({ id: it.id, displayPseudonym: it.displayPseudonym, points: p.points as Stroke["points"], color: String(p.strokeColor ?? p.color), width: Number(p.strokeWidth ?? p.width) });
     } else {
-      out.stickies.push({ id: it.id, slidePage, displayPseudonym: it.displayPseudonym, text: String(p.text), color: p.color as StickyColor, x: Number(p.x), y: Number(p.y) });
+      const likedBy = Array.isArray(p.likedBy) ? (p.likedBy as string[]) : [];
+      out.stickies.push({
+        id: it.id, slidePage, displayPseudonym: it.displayPseudonym, text: String(p.text), color: p.color as StickyColor, x: Number(p.x), y: Number(p.y),
+        likeCount: likedBy.length,
+        likedByMe: !!viewer?.studentId && likedBy.includes(viewer.studentId),
+        mine: viewer ? (viewer.isController ? it.studentId === STAFF_BOARD_ID : !!viewer.studentId && it.studentId === viewer.studentId) : false,
+        createdAt: it.createdAt.toISOString(),
+      });
     }
   }
   return out;

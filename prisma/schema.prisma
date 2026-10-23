@@ -160,6 +160,8 @@ model ClassSession {
   isBoardActive    Boolean       @default(false) @map("is_board_active")
   isBoardFrozen    Boolean       @default(false) @map("is_board_frozen")
   isSilentMode     Boolean       @default(true) @map("is_silent_mode")
+  boardMode        String        @default("SLIDE") @map("board_mode") @db.VarChar(10) // SLIDE = draw on current slide · IDEAS = blank class idea board
+  boardPrompt      String?       @map("board_prompt") @db.VarChar(200)
   status           SessionStatus @default(LIVE)
   startedAt        DateTime      @default(now()) @map("started_at") @db.Timestamptz
   endedAt          DateTime?     @map("ended_at") @db.Timestamptz
