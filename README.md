@@ -75,8 +75,11 @@ Phones must reach your computer over the same Wi-Fi:
 - **Exit ticket** opens by itself: ★ rating → tap the confusing slide (pre-selected from your 🤔 taps) → Submit.
 - Screen wake-lock, haptics, auto-reconnect, iPad landscape 2-column layout, safe-area (notch) aware, installable PWA.
 
-### Privacy
-- Peers and the projector only ever see pseudonyms (`HMAC(session, student)` → "Curious Otter"); identity comes from the session cookie, never from client payloads.
+### Student names & privacy
+- By default classmates and the projector see the student's **real name** (short form, e.g. "Natthapong S.").
+- A **"Hide my name · ซ่อนชื่อ"** switch (top of the student app, and inside Ask / Idea Board / sticky-note) shows the student as **"Anonymous Otter"** instead — applied to everything they posted in that class, and remembered for the next class.
+- The real `student_id` is always stored with every question, vote, pace tap, note and ♥, so the instructor's **Participation** tab (dashboard) counts everything — including anonymous posts — with per-student totals, a participation score and CSV export. Students are told this in the app.
+- Identity always comes from the session cookie, never from client payloads.
 - Early Warning shows `Student #A3F2E` labels; real name / ID / advisor are unlocked only at **CRITICAL** (≥ 70). Advisors see only their own advisees.
 
 ### Early Warning formula (`src/lib/risk-engine.ts`)
@@ -116,7 +119,7 @@ prisma/schema.prisma            PRD §5 schema (+ session_attendances)
 prisma/migrations/              SQL migration (pgvector + HNSW index)
 prisma/seed.ts                  demo data
 src/app/(auth)/login            MFU Google SSO + demo login
-src/app/(instructor)/dashboard  Teach · Early Warning · Teaching Evaluation · Session Reports
+src/app/(instructor)/dashboard  Teach · Early Warning · Participation · Teaching Evaluation · Session Reports
 src/app/(instructor)/live/[id]  Zero-Click console
 src/app/(student)/join          "Live now" button + PIN keypad
 src/app/(student)/join/[code]   student mobile / iPad app

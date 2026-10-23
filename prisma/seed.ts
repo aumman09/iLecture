@@ -147,6 +147,9 @@ async function main() {
     }
   }
 
+  // demo: the author of the first live question ticked "hide my name"
+  await prisma.sessionAttendance.updateMany({ where: { sessionId: live.id, studentId: students[0].studentId }, data: { isAnonymous: true } });
+
   await recalculateSectionRisk(section.id);
   await recalculateTeachingEvaluation(section.id);
   const risk = await prisma.studentRiskMetric.groupBy({ by: ["riskLevel"], where: { sectionId: section.id }, _count: true });

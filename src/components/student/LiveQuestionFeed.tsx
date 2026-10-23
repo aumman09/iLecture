@@ -4,6 +4,7 @@ import { CheckCircle2, ChevronUp, Layers, Pin } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { ANIMAL_EMOJI } from "@/lib/animals";
 import type { QuestionDTO } from "@/types";
+import { AuthorTag } from "./Identity";
 
 export function animalOf(pseudonym: string) {
   return ANIMAL_EMOJI[pseudonym.split(" ").pop() ?? ""] ?? "🙂";
@@ -18,7 +19,7 @@ export function LiveQuestionFeed({ questions, onVote, currentPage, disabled }: {
   if (questions.length === 0)
     return (
       <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400">
-        No questions yet. Be the first — it&apos;s anonymous 🙌
+        No questions yet. Be the first 🙌<br />Tick “Hide my name” if you’d rather ask anonymously.
       </div>
     );
 
@@ -42,7 +43,7 @@ function QuestionRow({ q, onVote, highlight, disabled }: { q: QuestionDTO; onVot
     <div className={cn("flex items-stretch gap-3 rounded-2xl border bg-white p-3 shadow-sm", q.isPinned ? "border-amber-300 bg-amber-50/40" : "border-slate-200", q.isAnswered && "opacity-60")}>
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
-          <span>{animalOf(q.displayPseudonym)} {q.mine ? "You" : q.displayPseudonym}</span>
+          <AuthorTag name={q.displayPseudonym} isAnonymous={q.isAnonymous} mine={q.mine} className="max-w-[60%]" />
           <span className={cn("rounded px-1 font-medium", highlight ? "bg-mfu/10 text-mfu" : "bg-slate-100 text-slate-500")}>Slide {q.slidePage}</span>
           {q.clusterSize > 1 && <span className="flex items-center gap-0.5 text-amber-700"><Layers className="h-3 w-3" />{q.clusterSize} similar</span>}
           {q.isPinned && <span className="flex items-center gap-0.5 text-amber-700"><Pin className="h-3 w-3" />Pinned</span>}

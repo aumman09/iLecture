@@ -17,7 +17,9 @@ export interface SlideMetadataDTO {
 export interface QuestionDTO {
   id: string;
   slidePage: number;
+  /** what classmates see: short real name, or a pseudonym when the author hid their name */
   displayPseudonym: string;
+  isAnonymous?: boolean;
   polishedContent: string;
   rawContent?: string; // only sent to the author and the instructor
   upvoteCount: number;
@@ -52,6 +54,7 @@ export interface StickyNote {
   x: number; // 0..1
   y: number; // 0..1
   displayPseudonym: string;
+  isAnonymous?: boolean;
 }
 
 export type StickyColor = "amber" | "blue" | "emerald" | "rose";
@@ -91,6 +94,9 @@ export interface SessionStateDTO {
   metadata: SlideMetadataDTO | null;
   // student-only
   myPseudonym?: string;
+  myDisplayName?: string; // label classmates see right now
+  myRealName?: string;
+  isAnonymous?: boolean;
   myPace?: PaceSignal | null;
   exitTicketSubmitted?: boolean;
 }

@@ -7,12 +7,14 @@ import { Sheet } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 import type { StickyColor, StickyNote, Stroke } from "@/types";
+import { HideNameToggle } from "./Identity";
 
 const PENS = ["#0F172A", "#990000", "#2563EB", "#16A34A"];
 const COLORS: StickyColor[] = ["amber", "blue", "emerald", "rose"];
 
 /** Opens automatically when the instructor taps "Class Board". Draw with a finger / Pencil or post a sticky note. */
-export function StudentBoardPad({ slideUrl, page, strokes, stickies, frozen, onStroke, onUndo, onSticky }: {
+export function StudentBoardPad({ slideUrl, page, strokes, stickies, frozen, onStroke, onUndo, onSticky, anonymous, onAnonymous }: {
+  anonymous: boolean; onAnonymous: (v: boolean) => void;
   slideUrl: string | null; page: number; strokes: BoardStroke[]; stickies: StickyNote[]; frozen: boolean;
   onStroke: (s: Stroke) => void; onUndo: () => void; onSticky: (text: string, color: StickyColor) => Promise<boolean>;
 }) {
@@ -50,7 +52,7 @@ export function StudentBoardPad({ slideUrl, page, strokes, stickies, frozen, onS
       </div>
 
       <Sheet open={noteOpen} onClose={() => setNoteOpen(false)}>
-        <h2 className="mb-3 text-lg font-semibold">Post a sticky note</h2>
+        <div className="mb-3 flex items-center justify-between gap-2"><h2 className="text-lg font-semibold">Post a sticky note</h2><HideNameToggle value={anonymous} onChange={onAnonymous} compact /></div>
         <textarea autoFocus value={text} onChange={(e) => setText(e.target.value.slice(0, 140))} rows={3} placeholder="Your idea or answer…" className={cn("w-full resize-none rounded-2xl border-2 px-4 py-3 text-base outline-none", STICKY_STYLES[color])} />
         <div className="mt-1 text-right text-xs text-slate-400">{text.length}/140</div>
         <div className="mt-2 flex items-center gap-2">

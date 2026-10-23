@@ -15,6 +15,7 @@ import {
 import type { AppUser } from "@/lib/auth";
 import type { PaceSignal, StickyColor, Stroke } from "@/types";
 import { moderateText } from "@/lib/moderation";
+import { identityOf } from "@/lib/identity";
 import { EMIT_CHANNEL, NAMESPACE, roomAll, roomInstructor, roomStudent, setIO } from "./realtime";
 
 /**
@@ -316,7 +317,8 @@ export function attachSocketServer(httpServer: HttpServer) {
       const item = await prisma.classBoardItem.create({
         data: { sessionId: s.id, slidePage: page, studentId: sid, displayPseudonym: pseudonym, itemType: "DRAWING_PATH", payloadJson: { points, strokeColor: color, strokeWidth: width } },
       });
-      socket.to(roomAll(s.sessionCode)).emit("board:stroke_broadcast", { slidePage: page, stroke: { id: item.id, points, color, width }, displayPseudonym: pseudonym });
+      const idn = await identityOf(s.id, sid);
+      socket.to(roomAll(s.sessionCode)).emit("board:stroke_broadcast", { slidePage: page, stroke: { id: item.id, points, color, width }, displayPseudonym: idn.label });
       ack({ ok: true, id: item.id });
     }));
 
@@ -350,9 +352,28 @@ export function attachSocketServer(httpServer: HttpServer) {
       const item = await prisma.classBoardItem.create({
         data: { sessionId: s.id, slidePage: page, studentId: sid, displayPseudonym: pseudonym, itemType: "STICKY_NOTE", payloadJson: { text, color, ...pos } },
       });
-      const payload = { id: item.id, slidePage: page, text, color, ...pos, displayPseudonym: pseudonym, likeCount: 0, createdAt: item.createdAt.toISOString() };
+      const idn = await identityOf(s.id, sid);
+      const payload = { id: item.id, slidePage: page, text, color, ...pos, displayPseudonym: idn.label, isAnonymous: idn.isAnonymous, likeCount: 0, createdAt: item.createdAt.toISOString() };
       nsp.to(roomAll(s.sessionCode)).emit("board:sticky_broadcast", payload);
       ack({ ok: true, sticky: { ...payload, mine: true } });
+    }));
+
+    // "Hide my name": classmates and the projector see a pseudonym instead of the real name.
+    // Applies to everything the student posted in this class (labels are resolved at read time).
+    socket.on("student:set_anonymous", wrap<{ sessionCode: string; anonymous: boolean }>(async (p, ack) => {
+      if (!user.studentId) throw new Error("Students only");
+      if (!allow(socket, 5)) throw new Error("Slow down");
+      const s = await ctx(p.sessionCode);
+      const anonymous = !!p.anonymous;
+      await prisma.sessionAttendance.upsert({
+        where: { sessionId_studentId: { sessionId: s.id, studentId: user.studentId } },
+        create: { sessionId: s.id, studentId: user.studentId, isAnonymous: anonymous },
+        update: { isAnonymous: anonymous },
+      });
+      await prisma.user.update({ where: { id: user.id }, data: { prefersAnonymous: anonymous } });
+      const idn = await identityOf(s.id, user.studentId);
+      nsp.to(roomAll(s.sessionCode)).emit("identity:changed", {});
+      ack({ ok: true, isAnonymous: anonymous, displayName: idn.label });
     }));
 
     // ♥ on an Idea Board note — one per student, atomic in SQL; student ids never leave the server

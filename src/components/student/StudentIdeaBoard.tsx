@@ -5,12 +5,13 @@ import { STICKY_STYLES } from "@/components/shared/BoardSurface";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 import type { StickyColor, StickyNote } from "@/types";
+import { AuthorTag, HideNameToggle } from "./Identity";
 
 const COLORS: StickyColor[] = ["amber", "blue", "emerald", "rose"];
 
 /** Opens by itself when the instructor opens the Idea Board: type → Post (1 tap), ♥ others' ideas (1 tap). */
-export function StudentIdeaBoard({ prompt, notes, frozen, onPost, onLike, onDelete }: {
-  prompt: string | null; notes: StickyNote[]; frozen: boolean;
+export function StudentIdeaBoard({ prompt, notes, frozen, onPost, onLike, onDelete, anonymous, onAnonymous }: {
+  prompt: string | null; notes: StickyNote[]; frozen: boolean; anonymous: boolean; onAnonymous: (v: boolean) => void;
   onPost: (text: string, color: StickyColor) => Promise<boolean>; onLike: (id: string, remove: boolean) => void; onDelete: (id: string) => void;
 }) {
   const [text, setText] = useState("");
@@ -53,6 +54,7 @@ export function StudentIdeaBoard({ prompt, notes, frozen, onPost, onLike, onDele
               <span className="ml-auto mr-1 text-xs opacity-60">{text.length}/280</span>
               <Button size="lg" disabled={!text.trim()} loading={sending} onClick={post}><Send className="h-4 w-4" />Post</Button>
             </div>
+            <div className="mt-2 border-t border-black/5 px-1 pt-2"><HideNameToggle value={anonymous} onChange={onAnonymous} compact /></div>
           </div>
         )}
         <div className="mt-3 flex items-center justify-between px-1 text-xs text-slate-500">
@@ -67,7 +69,7 @@ export function StudentIdeaBoard({ prompt, notes, frozen, onPost, onLike, onDele
             <div key={n.id} className={cn("mb-2 break-inside-avoid rounded-xl border-2 p-3", STICKY_STYLES[n.color], n.mine && "ring-2 ring-mfu/40")}>
               <p className="whitespace-pre-wrap break-words text-[15px] leading-snug">{n.text}</p>
               <div className="mt-2 flex items-center gap-2 text-xs">
-                <span className="truncate opacity-60">{n.mine ? "You" : n.displayPseudonym}</span>
+                <AuthorTag name={n.displayPseudonym} isAnonymous={n.isAnonymous} mine={n.mine} className="max-w-[55%] opacity-70" />
                 {n.mine && !frozen && (
                   <button onClick={() => onDelete(n.id)} className="rounded-md p-1 opacity-50 active:opacity-100" aria-label="Delete my idea"><Trash2 className="h-3.5 w-3.5" /></button>
                 )}

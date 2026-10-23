@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { AlertTriangle, BarChart3, BookOpen, CheckCircle2, ClipboardCheck, FileText, Loader2, LogOut, Play, Radio, RefreshCw, ShieldAlert, Users } from "lucide-react";
+import { AlertTriangle, BarChart3, BookOpen, CheckCircle2, HandHeart, ClipboardCheck, FileText, Loader2, LogOut, Play, Radio, RefreshCw, ShieldAlert, Users } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -12,12 +12,13 @@ import { cn } from "@/lib/cn";
 import { RetentionTable } from "./RetentionTable";
 import { EvalSummary } from "./EvalSummary";
 import { SessionReport } from "./SessionReport";
+import { ParticipationTable } from "./ParticipationTable";
 
 export interface SectionVM { id: string; courseId: string; courseCode: string; courseName: string; semester: string; sectionNumber: number; googleClassroomId: string | null; students: number; sessionsHeld: number; critical: number; moderate: number }
 export interface DeckVM { id: string; courseId: string; title: string; totalPages: number; isProcessed: boolean; syncedAt: string }
 export interface SessionVM { id: string; sectionId: string; code: string; title: string; status: string; startedAt: string; attended: number; feedbacks: number; questions: number; avgComprehension: number | null; topTopic: string | null }
 
-type Tab = "teach" | "warning" | "evaluation" | "reports";
+type Tab = "teach" | "warning" | "participation" | "evaluation" | "reports";
 
 export function Dashboard({ user, sections, decks, sessions, mockClassroom, initialTab, initialSession }: {
   user: { name: string; email: string; role: string }; sections: SectionVM[]; decks: DeckVM[]; sessions: SessionVM[];
@@ -45,6 +46,7 @@ export function Dashboard({ user, sections, decks, sessions, mockClassroom, init
   const tabs: { key: Tab; label: string; icon: React.ElementType; hidden?: boolean; badge?: number }[] = [
     { key: "teach", label: "Teach", icon: Play, hidden: isAdvisor },
     { key: "warning", label: "Early Warning", icon: ShieldAlert, badge: sections.reduce((a, s) => a + s.critical, 0) },
+    { key: "participation", label: "Participation", icon: HandHeart, hidden: isAdvisor },
     { key: "evaluation", label: "Teaching Evaluation", icon: ClipboardCheck, hidden: isAdvisor },
     { key: "reports", label: "Session Reports", icon: BarChart3, hidden: isAdvisor },
   ];
@@ -138,6 +140,7 @@ export function Dashboard({ user, sections, decks, sessions, mockClassroom, init
             )}
 
             {tab === "warning" && section && <RetentionTable sectionId={section.id} isAdvisor={isAdvisor} />}
+            {tab === "participation" && section && <ParticipationTable sectionId={section.id} />}
             {tab === "evaluation" && section && <EvalSummary sectionId={section.id} />}
             {tab === "reports" && section && (
               <div className="grid gap-6 lg:grid-cols-[360px_1fr]">

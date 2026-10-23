@@ -4,6 +4,7 @@ import { Send, Sparkles, Wand2 } from "lucide-react";
 import { Sheet } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
+import { HideNameToggle } from "./Identity";
 
 const QUICK = [
   { en: "Could you repeat that, please?", th: "พูดอีกครั้งได้ไหม" },
@@ -18,8 +19,8 @@ export type AskResult = { ok: boolean; status?: string; error?: string; reason?:
  * Ask sheet: one-tap quick questions, or type in Thai / any English — it is auto-polished into
  * academic English while you type (no extra button press), and you send with one tap.
  */
-export function QuestionForm({ open, onClose, slidePage, keyTerms, onSubmit }: {
-  open: boolean; onClose: () => void; slidePage: number; keyTerms: string[];
+export function QuestionForm({ open, onClose, slidePage, keyTerms, onSubmit, anonymous, onAnonymous }: {
+  open: boolean; onClose: () => void; slidePage: number; keyTerms: string[]; anonymous: boolean; onAnonymous: (v: boolean) => void;
   onSubmit: (raw: string, polished: string) => Promise<AskResult>;
 }) {
   const [raw, setRaw] = useState("");
@@ -68,7 +69,7 @@ export function QuestionForm({ open, onClose, slidePage, keyTerms, onSubmit }: {
     <Sheet open={open} onClose={onClose}>
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Ask about slide {slidePage}</h2>
-        <span className="text-xs text-slate-400">Anonymous</span>
+        <HideNameToggle value={anonymous} onChange={onAnonymous} compact />
       </div>
 
       <div className="grid grid-cols-2 gap-2">

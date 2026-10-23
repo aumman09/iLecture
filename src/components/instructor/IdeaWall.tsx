@@ -4,6 +4,7 @@ import { Eraser, Eye, EyeOff, Heart, Lightbulb, Lock, LockOpen, Pencil, Sparkles
 import { STICKY_STYLES } from "@/components/shared/BoardSurface";
 import { cn } from "@/lib/cn";
 import type { StickyNote } from "@/types";
+import { AuthorTag } from "@/components/student/Identity";
 
 const PROMPT_IDEAS = [
   "What is one thing you learned today?",
@@ -27,7 +28,12 @@ export function IdeaWall({ notes, prompt, frozen, sessionCode, onPrompt, onFreez
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { if (!editing) setDraft(prompt ?? ""); }, [prompt, editing]);
-  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+  // focus after a short delay so the keyboard shortcut that opened the board (I) is not typed into the box
+  useEffect(() => {
+    if (!editing) return;
+    const t = setTimeout(() => inputRef.current?.focus(), 80);
+    return () => clearTimeout(t);
+  }, [editing]);
 
   const sorted = useMemo(() => {
     const list = [...notes];
@@ -99,7 +105,7 @@ export function IdeaWall({ notes, prompt, frozen, sessionCode, onPrompt, onFreez
               <div key={n.id} className={cn("group relative mb-3 break-inside-avoid rounded-xl border-2 p-4 shadow-sm animate-pop", STICKY_STYLES[n.color])}>
                 <p className="whitespace-pre-wrap break-words text-lg font-medium leading-snug">{n.text}</p>
                 <div className="mt-3 flex items-center justify-between text-xs opacity-70">
-                  <span className="truncate">{showNames ? n.displayPseudonym : ""}</span>
+                  {showNames ? <AuthorTag name={n.displayPseudonym} isAnonymous={n.isAnonymous} className="max-w-[70%]" /> : <span />}
                   <button onClick={() => onLike(n.id, !!n.likedByMe)} className={cn("flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold", n.likedByMe ? "bg-rose-500 text-white opacity-100" : "hover:bg-black/5")}>
                     <Heart className={cn("h-3.5 w-3.5", n.likedByMe && "fill-current")} />{n.likeCount ?? 0}
                   </button>

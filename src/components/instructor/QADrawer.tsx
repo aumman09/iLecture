@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import { CheckCircle2, ChevronDown, ChevronUp, Layers, Pin, PinOff, RotateCcw, X } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { animalOf } from "@/components/student/LiveQuestionFeed";
+import { AuthorTag } from "@/components/student/Identity";
 import type { PaceStats, QuestionDTO } from "@/types";
 
 /** Slide-out clustered Q&A panel — opened from the dock during natural lecture breaks. */
@@ -65,7 +65,7 @@ export function QADrawer({ open, onClose, questions, currentPage, pace, onResolv
                   <p className="text-[15px] leading-snug text-slate-900">{q.polishedContent}</p>
                   <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
                     <button onClick={() => onGoto(q.slidePage)} className={cn("rounded px-1.5 py-0.5 font-medium", q.slidePage === currentPage ? "bg-mfu/10 text-mfu" : "bg-slate-100 hover:bg-slate-200")}>Slide {q.slidePage}</button>
-                    <span>{animalOf(q.displayPseudonym)} {q.displayPseudonym}</span>
+                    <AuthorTag name={q.displayPseudonym} isAnonymous={q.isAnonymous} />
                     {q.clusterSize > 1 && (
                       <button onClick={() => setExpanded(expanded === q.id ? null : q.id)} className="flex items-center gap-0.5 rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800">
                         <Layers className="h-3 w-3" /> {q.clusterSize} merged <ChevronDown className={cn("h-3 w-3 transition-transform", expanded === q.id && "rotate-180")} />

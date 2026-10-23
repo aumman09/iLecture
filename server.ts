@@ -10,6 +10,9 @@ import next from "next";
 import { attachSocketServer } from "./src/server/socket-server";
 import { startWorkers } from "./src/server/workers/start";
 import { ensureRedisOrFallback } from "./src/lib/redis";
+import { ensurePdfWorker } from "./src/server/ensure-assets";
+
+ensurePdfWorker();
 
 const dev = process.env.NODE_ENV !== "production";
 const port = Number(process.env.PORT || 3000);

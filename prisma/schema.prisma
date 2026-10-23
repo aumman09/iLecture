@@ -52,6 +52,7 @@ model User {
   studentId          String?  @unique @map("student_id") @db.VarChar(20)
   googleAccessToken  String?  @map("google_access_token")
   googleRefreshToken String?  @map("google_refresh_token")
+  prefersAnonymous   Boolean  @default(false) @map("prefers_anonymous") // student's last "hide my name" choice, reused in the next class
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   coursesTaught  Course[]        @relation("CourseInstructor")
@@ -327,7 +328,8 @@ model TeachingEvaluationMetric {
 model SessionAttendance {
   sessionId String   @map("session_id") @db.Uuid
   studentId String   @map("student_id") @db.VarChar(20)
-  joinedAt  DateTime @default(now()) @map("joined_at") @db.Timestamptz
+  joinedAt    DateTime @default(now()) @map("joined_at") @db.Timestamptz
+  isAnonymous Boolean  @default(false) @map("is_anonymous") // hide name from classmates / projector (instructor analytics still see participation)
 
   session ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 

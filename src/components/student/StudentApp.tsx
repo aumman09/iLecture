@@ -7,10 +7,11 @@ import { PdfSlide } from "@/components/shared/PdfSlide";
 import { Toasts, useToasts } from "@/components/ui/Toast";
 import { Logo } from "@/components/ui/Logo";
 import { PaceBar } from "./PaceBar";
-import { LiveQuestionFeed, animalOf } from "./LiveQuestionFeed";
+import { LiveQuestionFeed } from "./LiveQuestionFeed";
 import { QuestionForm, type AskResult } from "./QuestionForm";
 import { StudentBoardPad } from "./StudentBoardPad";
 import { StudentIdeaBoard } from "./StudentIdeaBoard";
+import { AuthorTag, HideNameToggle } from "./Identity";
 import { ExitTicketModal } from "./ExitTicketModal";
 import type { PaceSignal, QuestionDTO, SlideMetadataDTO } from "@/types";
 
@@ -75,13 +76,19 @@ export function StudentApp({ sessionCode, studentName, slides }: { sessionCode: 
     if (!r.ok || !j.ok) return { ok: false, reason: j.reason, error: j.error };
     if (j.status === "new") {
       actions.addLocalQuestion(j.question as QuestionDTO);
-      push({ title: "Question posted ✅", body: `Shown anonymously as ${animalOf(state!.myPseudonym ?? "")} ${state!.myPseudonym}`, tone: "success" });
+      push({ title: "Question posted ✅", body: state!.isAnonymous ? "Posted anonymously — classmates can't see your name." : `Posted as ${state!.myDisplayName}`, tone: "success" });
     } else if (j.status === "clustered") {
       actions.markVoted(j.parentQuestionId);
       push({ title: "Someone asked this already 🙌", body: `We added your vote to: “${j.parentContent}”`, tone: "success" });
     }
     navigator.vibrate?.(20);
     return { ok: true, status: j.status };
+  };
+
+  const setAnon = async (v: boolean) => {
+    const r = await actions.setAnonymous(v);
+    if (!r.ok) push({ title: r.error ?? "Could not change", tone: "error" });
+    else push({ title: v ? "Your name is hidden 🕶️" : "Your name is visible 👋", body: v ? "Classmates and the screen see you as Anonymous." : `Classmates see you as ${r.displayName}.` });
   };
 
   const vote = (q: QuestionDTO) => {
@@ -137,7 +144,7 @@ export function StudentApp({ sessionCode, studentName, slides }: { sessionCode: 
         <Logo compact />
         <div className="min-w-0 flex-1 leading-tight">
           <div className="truncate text-sm font-semibold text-slate-900">{state.courseCode} · {state.sessionTitle}</div>
-          <div className="truncate text-[11px] text-slate-500">You are <span className="font-medium text-slate-700">{animalOf(state.myPseudonym ?? "")} {state.myPseudonym}</span> · anonymous</div>
+          <div className="flex items-center gap-1 truncate text-[11px] text-slate-500">You appear as <AuthorTag name={state.myDisplayName ?? ""} isAnonymous={state.isAnonymous} className="font-medium text-slate-700" /></div>
         </div>
         {connected ? (
           <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700"><Radio className="h-3 w-3" />LIVE</span>
@@ -145,6 +152,10 @@ export function StudentApp({ sessionCode, studentName, slides }: { sessionCode: 
           <span className="flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700"><WifiOff className="h-3 w-3" />Reconnecting</span>
         )}
       </header>
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-100 bg-white/80 px-3 py-1.5">
+        <HideNameToggle value={!!state.isAnonymous} onChange={setAnon} compact />
+        {state.isAnonymous && <span className="truncate text-[10px] text-slate-400">Hidden from classmates · your instructor still sees your participation</span>}
+      </div>
 
       {state.isBoardActive && state.boardMode === "IDEAS" ? (
         <div className="min-h-0 flex-1">
@@ -159,6 +170,8 @@ export function StudentApp({ sessionCode, studentName, slides }: { sessionCode: 
             }}
             onLike={(id, remove) => actions.likeNote(id, remove)}
             onDelete={(id) => actions.deleteNote(id)}
+            anonymous={!!state.isAnonymous}
+            onAnonymous={setAnon}
           />
         </div>
       ) : state.isBoardActive ? (
@@ -177,6 +190,8 @@ export function StudentApp({ sessionCode, studentName, slides }: { sessionCode: 
               else push({ title: "Posted to the board 📌", tone: "success" });
               return r.ok;
             }}
+            anonymous={!!state.isAnonymous}
+            onAnonymous={setAnon}
           />
         </div>
       ) : (
@@ -232,7 +247,7 @@ export function StudentApp({ sessionCode, studentName, slides }: { sessionCode: 
         </>
       )}
 
-      <QuestionForm open={askOpen} onClose={() => setAskOpen(false)} slidePage={livePage} keyTerms={meta?.keyTerms ?? []} onSubmit={ask} />
+      <QuestionForm open={askOpen} onClose={() => setAskOpen(false)} slidePage={livePage} keyTerms={meta?.keyTerms ?? []} onSubmit={ask} anonymous={!!state.isAnonymous} onAnonymous={setAnon} />
 
       {zoom && (
         <div className="fixed inset-0 z-50 flex flex-col bg-slate-950 pt-safe pb-safe">

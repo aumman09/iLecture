@@ -1,5 +1,6 @@
 import { prisma } from "./db";
 import { generatePseudonym } from "./pseudonym";
+import { identityMap, shortName } from "./identity";
 import { env } from "./env";
 import type { AppUser } from "./auth";
 import { IDEA_BOARD_PAGE, type BoardMode } from "@/types";
@@ -56,11 +57,15 @@ export async function buildSessionState(s: FullSession, user: AppUser, activeCou
     metadata: metadataFor(s, s.currentSlidePage),
   };
   if (user.role === "STUDENT" && user.studentId) {
-    const [pace, ticket] = await Promise.all([
+    const [pace, ticket, att] = await Promise.all([
       prisma.paceSignal.findUnique({ where: { sessionId_slidePage_studentId: { sessionId: s.id, slidePage: s.currentSlidePage, studentId: user.studentId } } }),
       prisma.muddiestFeedback.findUnique({ where: { sessionId_studentId: { sessionId: s.id, studentId: user.studentId } } }),
+      prisma.sessionAttendance.findUnique({ where: { sessionId_studentId: { sessionId: s.id, studentId: user.studentId } } }),
     ]);
     base.myPseudonym = generatePseudonym(s.id, user.studentId);
+    base.isAnonymous = !!att?.isAnonymous;
+    base.myRealName = shortName(user.name || user.studentId);
+    base.myDisplayName = base.isAnonymous ? base.myPseudonym : base.myRealName;
     base.myPace = pace?.signalType ?? null;
     base.exitTicketSubmitted = !!ticket;
   }
@@ -70,9 +75,11 @@ export async function buildSessionState(s: FullSession, user: AppUser, activeCou
 /** Record attendance + auto-enrol (so a QR scan is all a student ever needs to do). */
 export async function markAttendance(s: FullSession, user: AppUser) {
   if (user.role !== "STUDENT" || !user.studentId) return;
+  const pref = await prisma.user.findUnique({ where: { id: user.id }, select: { prefersAnonymous: true } });
   await prisma.sessionAttendance.upsert({
     where: { sessionId_studentId: { sessionId: s.id, studentId: user.studentId } },
-    create: { sessionId: s.id, studentId: user.studentId },
+    // a new class starts with the student's last "hide my name" choice
+    create: { sessionId: s.id, studentId: user.studentId, isAnonymous: !!pref?.prefersAnonymous },
     update: {},
   });
   const enrolled = await prisma.enrollment.findUnique({ where: { sectionId_studentId: { sectionId: s.sectionId, studentId: user.studentId } } });
@@ -94,14 +101,16 @@ export async function paceStats(sessionId: string, slidePage: number): Promise<P
 export async function boardItems(sessionId: string, slidePage: number, viewer?: { studentId: string | null; isController: boolean }): Promise<BoardItemsDTO> {
   const items = await prisma.classBoardItem.findMany({ where: { sessionId, slidePage }, orderBy: { createdAt: "asc" } });
   const out: BoardItemsDTO = { slidePage, strokes: [], stickies: [] };
+  const who = await identityMap(sessionId, items.map((i) => i.studentId));
   for (const it of items) {
+    const idn = who.get(it.studentId) ?? { label: it.displayPseudonym, isAnonymous: true };
     const p = it.payloadJson as Record<string, unknown>;
     if (it.itemType === "DRAWING_PATH") {
-      out.strokes.push({ id: it.id, displayPseudonym: it.displayPseudonym, points: p.points as Stroke["points"], color: String(p.strokeColor ?? p.color), width: Number(p.strokeWidth ?? p.width) });
+      out.strokes.push({ id: it.id, displayPseudonym: idn.label, points: p.points as Stroke["points"], color: String(p.strokeColor ?? p.color), width: Number(p.strokeWidth ?? p.width) });
     } else {
       const likedBy = Array.isArray(p.likedBy) ? (p.likedBy as string[]) : [];
       out.stickies.push({
-        id: it.id, slidePage, displayPseudonym: it.displayPseudonym, text: String(p.text), color: p.color as StickyColor, x: Number(p.x), y: Number(p.y),
+        id: it.id, slidePage, displayPseudonym: idn.label, isAnonymous: idn.isAnonymous, text: String(p.text), color: p.color as StickyColor, x: Number(p.x), y: Number(p.y),
         likeCount: likedBy.length,
         likedByMe: !!viewer?.studentId && likedBy.includes(viewer.studentId),
         mine: viewer ? (viewer.isController ? it.studentId === STAFF_BOARD_ID : !!viewer.studentId && it.studentId === viewer.studentId) : false,
@@ -125,11 +134,14 @@ export async function listQuestions(sessionId: string, viewer: { role: string; s
     const v = await prisma.questionUpvote.findMany({ where: { studentId: viewer.studentId, question: { sessionId } }, select: { questionId: true } });
     voted = new Set(v.map((x) => x.questionId));
   }
+  const who = await identityMap(sessionId, roots.map((q) => q.studentId));
   return roots.map((q) => {
+    const idn = who.get(q.studentId) ?? { label: q.displayPseudonym, isAnonymous: true };
     const dto: QuestionDTO = {
       id: q.id,
       slidePage: q.slidePage,
-      displayPseudonym: q.displayPseudonym,
+      displayPseudonym: idn.label,
+      isAnonymous: idn.isAnonymous,
       polishedContent: q.polishedContent,
       upvoteCount: q.upvoteCount,
       clusterSize: q.clusterSize,

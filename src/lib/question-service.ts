@@ -2,6 +2,7 @@ import { prisma } from "./db";
 import { embed, moderate } from "./ai-service";
 import { env } from "./env";
 import { generatePseudonym } from "./pseudonym";
+import { identityOf } from "./identity";
 import { emitTo, roomAll, roomInstructor } from "@/server/realtime";
 import type { QuestionDTO } from "@/types";
 
@@ -86,8 +87,9 @@ export async function submitQuestion(input: {
   await prisma.$executeRawUnsafe(`UPDATE questions SET embedding = $1::vector WHERE id = $2::uuid`, vec, q.id);
   await prisma.questionUpvote.create({ data: { questionId: q.id, studentId: input.studentId } });
 
+  const idn = await identityOf(input.sessionId, input.studentId);
   const dto: QuestionDTO = {
-    id: q.id, slidePage: q.slidePage, displayPseudonym: q.displayPseudonym, polishedContent: q.polishedContent,
+    id: q.id, slidePage: q.slidePage, displayPseudonym: idn.label, isAnonymous: idn.isAnonymous, polishedContent: q.polishedContent,
     upvoteCount: q.upvoteCount, clusterSize: q.clusterSize, isPinned: false, isAnswered: false, createdAt: q.createdAt.toISOString(),
   };
   await emitTo(roomAll(input.sessionCode), "question:new", dto);

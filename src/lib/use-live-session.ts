@@ -39,6 +39,7 @@ export function useLiveSession(sessionCode: string, handlers: Handlers = {}) {
   h.current = handlers;
   const pageRef = useRef(1);
   const modeRef = useRef<BoardMode>("SLIDE");
+  const identityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** page the board is on: live slide, or 0 for the blank Idea Board */
   const bp = () => (modeRef.current === "IDEAS" ? 0 : pageRef.current);
 
@@ -122,6 +123,15 @@ export function useLiveSession(sessionCode: string, handlers: Handlers = {}) {
       },
       "session:ended": () => setState((st) => (st ? { ...st, status: "ENDED" } : st)),
       "session:summary_ready": () => setSummaryReady(true),
+      // someone ticked / unticked "hide my name" → re-read labels (debounced)
+      "identity:changed": () => {
+        if (identityTimer.current) clearTimeout(identityTimer.current);
+        identityTimer.current = setTimeout(async () => {
+          const r = await fetch(`/api/questions?sessionCode=${sessionCode}`).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+          if (r?.questions) setQuestions(sortQuestions(r.questions));
+          setState((st) => { if (st?.isBoardActive) fetchBoard(); return st; });
+        }, 400);
+      },
       "exit_ticket:progress": (p: { submitted: number; attended: number }) => setExitProgress(p),
     };
 
@@ -215,6 +225,13 @@ export function useLiveSession(sessionCode: string, handlers: Handlers = {}) {
     },
     addLocalQuestion: (q: QuestionDTO) => setQuestions((qs) => (qs.some((x) => x.id === q.id) ? qs.map((x) => (x.id === q.id ? { ...x, ...q } : x)) : sortQuestions([...qs, q]))),
     markVoted: (questionId: string) => setQuestions((qs) => qs.map((q) => (q.id === questionId ? { ...q, votedByMe: true } : q))),
+    setAnonymous: async (anonymous: boolean) => {
+      setState((st) => (st ? { ...st, isAnonymous: anonymous, myDisplayName: anonymous ? st.myPseudonym : st.myRealName } : st));
+      const r = await emitAck<{ isAnonymous: boolean; displayName: string }>("student:set_anonymous", { sessionCode, anonymous });
+      if (r.ok) setState((st) => (st ? { ...st, isAnonymous: r.isAnonymous, myDisplayName: r.displayName } : st));
+      else setState((st) => (st ? { ...st, isAnonymous: !anonymous, myDisplayName: !anonymous ? st.myPseudonym : st.myRealName } : st));
+      return r;
+    },
     markExitSubmitted: () => setState((st) => (st ? { ...st, exitTicketSubmitted: true } : st)),
   };
 
