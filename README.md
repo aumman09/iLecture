@@ -27,6 +27,13 @@ npm run dev                   # http://localhost:3000
 
 Production: `npm run build && npm start`.
 
+### Troubleshooting
+| Symptom | Fix |
+|---|---|
+| `User was denied access on the database` / `Can't reach database server` | Prisma is not talking to the Docker Postgres. It listens on host port **5433** (to avoid clashing with a Homebrew / Postgres.app server on 5432). Make sure `.env` has `localhost:5433` and `docker compose ps` shows `ilecture-postgres` running. |
+| `ECONNREFUSED 127.0.0.1:6379` | Redis is not running — `docker compose up -d`. The app also falls back to in-process mode automatically. |
+| `Cannot connect to the Docker daemon` | Open Docker Desktop first. |
+
 ### Demo accounts (DEMO_MODE=true)
 | Role | How to sign in |
 |---|---|

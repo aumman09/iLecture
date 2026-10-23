@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: ilecture_mfu
     ports:
-      - "5432:5432"
+      - "5433:5432"   # host port 5433 avoids clashing with a local PostgreSQL (Homebrew / Postgres.app)
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
