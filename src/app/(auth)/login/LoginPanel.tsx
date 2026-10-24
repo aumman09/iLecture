@@ -37,7 +37,7 @@ export function LoginPanel(props: {
   };
   const randomStudent = () => {
     const id = `6831${String(Math.floor(100000 + Math.random() * 899999))}`;
-    demo(`${id}@${props.studentDomain}`, `Guest Student ${id.slice(-4)}`, studentCb);
+    demo(`${id}@${props.studentDomain}`, `Guest-${id.slice(-4)}`, studentCb);
   };
 
   return (

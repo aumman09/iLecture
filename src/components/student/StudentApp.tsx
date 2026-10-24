@@ -162,9 +162,13 @@ export function StudentApp({ sessionCode, studentName, slides }: { sessionCode: 
           <StudentIdeaBoard
             prompt={state.boardPrompt}
             notes={stickies}
+            strokes={strokes}
             frozen={state.isBoardFrozen}
-            onPost={async (text, color) => {
-              const r = await actions.addSticky(text, color);
+            onStroke={(st) => actions.drawStroke(st).then((r) => { if (!r.ok) push({ title: r.error ?? "Not sent", tone: "error" }); })}
+            onUndo={() => actions.undo()}
+            onMove={(id, x, y) => actions.moveNote(id, x, y).then((r) => { if (!r.ok) push({ title: r.error ?? "Not moved", tone: "error" }); })}
+            onPost={async (text, color, at) => {
+              const r = await actions.addSticky(text, color, at);
               if (!r.ok) push({ title: r.error ?? "Not posted", tone: "error" });
               return r.ok;
             }}

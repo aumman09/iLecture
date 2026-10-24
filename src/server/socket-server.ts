@@ -345,7 +345,7 @@ export function attachSocketServer(httpServer: HttpServer) {
       ack({ ok: true, removed: last.id });
     }));
 
-    socket.on("board:add_sticky", wrap<{ sessionCode: string; slidePage: number; text: string; color: StickyColor }>(async (p, ack) => {
+    socket.on("board:add_sticky", wrap<{ sessionCode: string; slidePage: number; text: string; color: StickyColor; x?: number; y?: number }>(async (p, ack) => {
       if (!allow(socket, 10)) throw new Error("Slow down");
       const s = await ctx(p.sessionCode, { live: true });
       if (!s.isBoardActive) throw new Error("Board is closed");
@@ -356,8 +356,10 @@ export function attachSocketServer(httpServer: HttpServer) {
       if (!text) throw new Error("Empty note");
       if (ideas && !data.isController && moderateText(text)) throw new Error("Please keep it respectful 🙏");
       const color: StickyColor = ["amber", "blue", "emerald", "rose"].includes(p.color) ? p.color : "amber";
-      const pos = ideas
-        ? { x: 0, y: 0 } // the Idea Board lays notes out as a wall, not by coordinates
+      const at = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.min(0.97, Math.max(0, v)) : null);
+      const tapX = at(p.x), tapY = at(p.y);
+      const pos = tapX !== null && tapY !== null
+        ? { x: tapX, y: tapY } // Idea Board: the note goes exactly where the student tapped
         : placeSticky((await prisma.classBoardItem.findMany({ where: { sessionId: s.id, slidePage: page, itemType: "STICKY_NOTE" }, select: { payloadJson: true } })).map((e) => e.payloadJson as { x: number; y: number }));
       const sid = data.isController ? STAFF_BOARD_ID : user.studentId!;
       const pseudonym = data.isController ? "Instructor" : generatePseudonym(s.id, sid);
@@ -386,6 +388,25 @@ export function attachSocketServer(httpServer: HttpServer) {
       const idn = await identityOf(s.id, user.studentId);
       nsp.to(roomAll(s.sessionCode)).emit("identity:changed", {});
       ack({ ok: true, isAnonymous: anonymous, displayName: idn.label });
+    }));
+
+    // drag a note to a new spot (its author, or the instructor)
+    socket.on("board:move_item", wrap<{ sessionCode: string; itemId: string; x: number; y: number }>(async (p, ack) => {
+      if (!allow(socket, 1)) throw new Error("Slow down");
+      const s = await ctx(p.sessionCode, { live: true });
+      if (s.isBoardFrozen && !data.isController) throw new Error("Board is frozen");
+      const item = await prisma.classBoardItem.findFirst({ where: { id: String(p.itemId), sessionId: s.id, itemType: "STICKY_NOTE" } });
+      if (!item) throw new Error("Not found");
+      const sid = data.isController ? STAFF_BOARD_ID : user.studentId;
+      if (!data.isController && item.studentId !== sid) throw new Error("You can only move your own note");
+      const x = Math.min(0.97, Math.max(0, Number(p.x) || 0));
+      const y = Math.min(0.97, Math.max(0, Number(p.y) || 0));
+      await prisma.$executeRawUnsafe(
+        `UPDATE class_board_items SET payload_json = payload_json || jsonb_build_object('x', $2::float8, 'y', $3::float8) WHERE id = $1::uuid`,
+        item.id, x, y
+      );
+      socket.to(roomAll(s.sessionCode)).emit("board:item_moved", { id: item.id, x, y });
+      ack({ ok: true });
     }));
 
     // ♥ on an Idea Board note — one per student, atomic in SQL; student ids never leave the server

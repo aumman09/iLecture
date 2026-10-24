@@ -115,6 +115,11 @@ export function LiveConsole({ sessionCode, joinUrl, sessionId }: { sessionCode: 
         {state.isBoardActive && state.boardMode === "IDEAS" ? (
           <IdeaWall
             notes={stickies}
+            strokes={strokes}
+            onStroke={(st) => actions.drawStroke(st)}
+            onUndo={() => actions.undo()}
+            onMove={(id, x, y) => actions.moveNote(id, x, y)}
+            onPost={async (text, color, at) => { const r = await actions.addSticky(text, color, at); return r.ok; }}
             prompt={state.boardPrompt}
             frozen={state.isBoardFrozen}
             sessionCode={state.sessionCode}

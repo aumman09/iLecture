@@ -1,6 +1,10 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Eraser, Eye, EyeOff, Heart, Lightbulb, Lock, LockOpen, Pencil, Sparkles, X } from "lucide-react";
+import { Eraser, Eye, EyeOff, Hand, Heart, LayoutGrid, Lightbulb, Lock, LockOpen, PenLine, Pencil, Sparkles, StickyNote as StickyIcon, Type, Undo2, X } from "lucide-react";
+import { FreeBoard, type FreeTool } from "@/components/shared/FreeBoard";
+import type { BoardStroke } from "@/components/shared/BoardSurface";
+import { Modal } from "@/components/ui/Modal";
+import type { StickyColor, Stroke } from "@/types";
 import { STICKY_STYLES } from "@/components/shared/BoardSurface";
 import { cn } from "@/lib/cn";
 import type { StickyNote } from "@/types";
@@ -13,14 +17,26 @@ const PROMPT_IDEAS = [
   "Give an example of …",
 ];
 
+const PENS = ["#0F172A", "#990000", "#2563EB", "#16A34A", "#D97706"];
+const NOTE_COLORS: StickyColor[] = ["amber", "blue", "emerald", "rose"];
+
 /**
- * Idea Board on the projector — a blank wall where every student posts ideas from their phone.
- * Notes flow in as a masonry wall (scales to 200+ notes), sortable by newest or most ♥.
+ * Idea Board on the projector — a blank whiteboard. Students tap anywhere on their phone to write,
+ * everyone (instructor too) can draw lines to connect ideas, and the instructor can drag any note.
+ * "List" view shows the same notes as a sortable masonry wall for reading.
  */
-export function IdeaWall({ notes, prompt, frozen, sessionCode, onPrompt, onFreeze, onClear, onDelete, onLike }: {
-  notes: StickyNote[]; prompt: string | null; frozen: boolean; sessionCode: string;
+export function IdeaWall({ notes, strokes, prompt, frozen, sessionCode, onPrompt, onFreeze, onClear, onDelete, onLike, onStroke, onUndo, onMove, onPost }: {
+  notes: StickyNote[]; strokes: BoardStroke[]; prompt: string | null; frozen: boolean; sessionCode: string;
   onPrompt: (p: string | null) => void; onFreeze: (f: boolean) => void; onClear: () => void; onDelete: (id: string) => void; onLike: (id: string, remove: boolean) => void;
+  onStroke: (s: Stroke) => void; onUndo: () => void; onMove: (id: string, x: number, y: number) => void;
+  onPost: (text: string, color: StickyColor, at: { x: number; y: number }) => Promise<boolean>;
 }) {
+  const [view, setView] = useState<"board" | "list">("board");
+  const [boardTool, setBoardTool] = useState<FreeTool>("move");
+  const [pen, setPen] = useState(PENS[1]);
+  const [placing, setPlacing] = useState<{ x: number; y: number } | null>(null);
+  const [noteText, setNoteText] = useState("");
+  const [noteColor, setNoteColor] = useState<StickyColor>("amber");
   const [sort, setSort] = useState<"new" | "top">("new");
   const [showNames, setShowNames] = useState(true);
   const [editing, setEditing] = useState(!prompt);
@@ -80,10 +96,26 @@ export function IdeaWall({ notes, prompt, frozen, sessionCode, onPrompt, onFreez
       {/* toolbar */}
       <div className="mb-3 flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-white px-2 py-1 shadow-sm">
         <span className="px-2 text-sm font-semibold text-slate-800">{notes.length} ideas</span>
+        <div className="flex rounded-lg bg-slate-100 p-0.5">
+          <button onClick={() => setView("board")} className={cn("flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium", view === "board" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500")}><StickyIcon className="h-4 w-4" />Board</button>
+          <button onClick={() => setView("list")} className={cn("flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium", view === "list" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500")}><LayoutGrid className="h-4 w-4" />List</button>
+        </div>
         <span className="mx-1 h-6 w-px bg-slate-200" />
-        {(["new", "top"] as const).map((k) => (
-          <button key={k} onClick={() => setSort(k)} className={cn(tool, sort === k && "bg-slate-900 text-white hover:bg-slate-800")}>{k === "new" ? "Newest" : "Most ♥"}</button>
-        ))}
+        {view === "board" ? (
+          <>
+            {([["move", Hand, "Move"], ["text", Type, "Write"], ["pen", PenLine, "Draw"]] as const).map(([k, Icon, label]) => (
+              <button key={k} onClick={() => setBoardTool(k)} className={cn(tool, boardTool === k && "bg-slate-900 text-white hover:bg-slate-800")}><Icon className="h-4 w-4" />{label}</button>
+            ))}
+            {boardTool === "pen" && PENS.map((c) => (
+              <button key={c} onClick={() => setPen(c)} aria-label={`Pen ${c}`} className={cn("h-6 w-6 rounded-full border-2", pen === c ? "scale-110 border-slate-900" : "border-white")} style={{ background: c }} />
+            ))}
+            <button className={tool} onClick={onUndo}><Undo2 className="h-4 w-4" />Undo</button>
+          </>
+        ) : (
+          (["new", "top"] as const).map((k) => (
+            <button key={k} onClick={() => setSort(k)} className={cn(tool, sort === k && "bg-slate-900 text-white hover:bg-slate-800")}>{k === "new" ? "Newest" : "Most ♥"}</button>
+          ))
+        )}
         <span className="mx-1 h-6 w-px bg-slate-200" />
         <button className={tool} onClick={() => setShowNames((v) => !v)}>{showNames ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}Names</button>
         <button className={cn(tool, frozen && "bg-slate-900 text-white hover:bg-slate-800")} onClick={() => onFreeze(!frozen)}>{frozen ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}{frozen ? "Closed" : "Close posting"}</button>
@@ -91,8 +123,43 @@ export function IdeaWall({ notes, prompt, frozen, sessionCode, onPrompt, onFreez
         <span className="ml-auto pr-2 text-xs text-slate-500">Students post from their phones · PIN <span className="font-mono font-bold text-slate-800">{sessionCode}</span></span>
       </div>
 
-      {/* wall */}
-      <div className="min-h-0 flex-1 overflow-y-auto rounded-2xl bg-slate-200/50 p-3">
+      {view === "board" && (
+        <div className="min-h-0 flex-1 rounded-2xl bg-slate-200/50 p-2">
+          <FreeBoard
+            strokes={strokes}
+            notes={notes}
+            tool={boardTool}
+            color={pen}
+            canEdit
+            showNames={showNames}
+            onStroke={onStroke}
+            onPlace={(x, y) => { setNoteText(""); setPlacing({ x, y }); }}
+            onMove={onMove}
+            onLike={(n) => onLike(n.id, !!n.likedByMe)}
+            onDelete={(n) => onDelete(n.id)}
+            canMove={() => true}
+            canDelete={() => true}
+            emptyHint={
+              <div>
+                <Sparkles className="mx-auto h-10 w-10 text-amber-500" />
+                <p className="mt-2 text-2xl font-semibold text-slate-600">Blank board — waiting for ideas…</p>
+                <p className="mt-1 text-slate-400">Students tap anywhere on their phone to write · everyone can draw lines to connect ideas</p>
+              </div>
+            }
+          />
+        </div>
+      )}
+
+      <Modal open={!!placing} onClose={() => setPlacing(null)} title="Add a note">
+        <textarea autoFocus value={noteText} onChange={(e) => setNoteText(e.target.value.slice(0, 280))} onKeyDown={(e) => e.stopPropagation()} rows={3} className={cn("w-full resize-none rounded-xl border-2 px-3 py-2 outline-none", STICKY_STYLES[noteColor])} placeholder="Topic, keyword or idea…" />
+        <div className="mt-3 flex items-center gap-2">
+          {NOTE_COLORS.map((c) => <button key={c} onClick={() => setNoteColor(c)} aria-label={c} className={cn("h-8 w-8 rounded-lg border-2", STICKY_STYLES[c], noteColor === c && "ring-2 ring-slate-900 ring-offset-1")} />)}
+          <button disabled={!noteText.trim()} onClick={async () => { if (placing && (await onPost(noteText.trim(), noteColor, placing))) setPlacing(null); }} className="ml-auto rounded-xl bg-mfu px-5 py-2 text-sm font-semibold text-white disabled:opacity-40">Add</button>
+        </div>
+      </Modal>
+
+      {/* list view */}
+      {view === "list" && <div className="min-h-0 flex-1 overflow-y-auto rounded-2xl bg-slate-200/50 p-3">
         {sorted.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <Sparkles className="h-12 w-12 text-amber-500" />
@@ -115,7 +182,7 @@ export function IdeaWall({ notes, prompt, frozen, sessionCode, onPrompt, onFreez
             ))}
           </div>
         )}
-      </div>
+      </div>}
     </div>
   );
 }

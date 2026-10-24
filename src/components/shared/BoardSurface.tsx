@@ -12,7 +12,7 @@ export const STICKY_STYLES: Record<StickyNote["color"], string> = {
   rose: "bg-rose-100 border-rose-300 text-rose-950",
 };
 
-function drawStroke(ctx: CanvasRenderingContext2D, s: Stroke, w: number, h: number) {
+export function drawStroke(ctx: CanvasRenderingContext2D, s: Stroke, w: number, h: number) {
   if (!s.points.length) return;
   ctx.strokeStyle = s.color;
   ctx.fillStyle = s.color;

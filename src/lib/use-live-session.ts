@@ -113,6 +113,7 @@ export function useLiveSession(sessionCode: string, handlers: Handlers = {}) {
       },
       "board:sticky_broadcast": (n: StickyNote) => { if (n.slidePage === bp()) setStickies((s) => (s.some((x) => x.id === n.id) ? s : [...s, n])); },
       "board:cleared": (p: { slidePage: number }) => { if (p.slidePage === bp()) { setStrokes([]); setStickies([]); } },
+      "board:item_moved": (p: { id: string; x: number; y: number }) => setStickies((s) => s.map((n) => (n.id === p.id ? { ...n, x: p.x, y: p.y } : n))),
       "board:prompt": (p: { prompt: string | null }) => setState((st) => (st ? { ...st, boardPrompt: p.prompt } : st)),
       "board:liked": (p: { id: string; likeCount: number }) => setStickies((s) => s.map((n) => (n.id === p.id ? { ...n, likeCount: p.likeCount } : n))),
       "board:item_removed": (p: { id: string }) => { setStrokes((s) => s.filter((x) => x.id !== p.id)); setStickies((s) => s.filter((x) => x.id !== p.id)); },
@@ -179,6 +180,10 @@ export function useLiveSession(sessionCode: string, handlers: Handlers = {}) {
       if (r.ok && typeof r.likeCount === "number") setStickies((s) => s.map((n) => (n.id === id ? { ...n, likeCount: r.likeCount as number } : n)));
       return r;
     },
+    moveNote: async (id: string, x: number, y: number) => {
+      setStickies((s) => s.map((n) => (n.id === id ? { ...n, x, y } : n)));
+      return emitAck("board:move_item", { sessionCode, itemId: id, x, y });
+    },
     deleteNote: (id: string) => { setStickies((s) => s.filter((n) => n.id !== id)); return emitAck("board:delete_item", { sessionCode, itemId: id }); },
     setSilent: (isSilentMode: boolean) => {
       setState((st) => (st ? { ...st, isSilentMode } : st));
@@ -218,8 +223,8 @@ export function useLiveSession(sessionCode: string, handlers: Handlers = {}) {
       return r;
     },
     undo: () => emitAck("board:undo", { sessionCode }),
-    addSticky: async (text: string, color: StickyColor) => {
-      const r = await emitAck<{ sticky: StickyNote }>("board:add_sticky", { sessionCode, slidePage: bp(), text, color });
+    addSticky: async (text: string, color: StickyColor, at?: { x: number; y: number }) => {
+      const r = await emitAck<{ sticky: StickyNote }>("board:add_sticky", { sessionCode, slidePage: bp(), text, color, ...(at ?? {}) });
       if (r.ok && r.sticky) setStickies((s) => (s.some((x) => x.id === r.sticky.id) ? s.map((x) => (x.id === r.sticky.id ? { ...x, mine: true } : x)) : [...s, r.sticky]));
       return r;
     },
