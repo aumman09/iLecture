@@ -41,7 +41,9 @@ export function useLiveSession(sessionCode: string, handlers: Handlers = {}) {
   const modeRef = useRef<BoardMode>("SLIDE");
   const identityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** page the board is on: live slide, or 0 for the blank Idea Board */
-  const bp = () => (modeRef.current === "IDEAS" ? 0 : pageRef.current);
+  const ideaPageRef = useRef(1);
+  const boardActiveRef = useRef(false);
+  const bp = () => (modeRef.current === "IDEAS" ? -(ideaPageRef.current - 1) : pageRef.current);
 
   const applyBoard = useCallback((b: BoardItemsDTO | null) => {
     if (!b) { setStrokes([]); setStickies([]); return; }
@@ -64,6 +66,8 @@ export function useLiveSession(sessionCode: string, handlers: Handlers = {}) {
       setError(null);
       pageRef.current = r.state.currentSlidePage;
       modeRef.current = r.state.boardMode;
+      ideaPageRef.current = r.state.ideaPage ?? 1;
+      boardActiveRef.current = r.state.isBoardActive;
       setState(r.state);
       setQuestions(sortQuestions(r.questions));
       applyBoard(r.board);
@@ -100,13 +104,20 @@ export function useLiveSession(sessionCode: string, handlers: Handlers = {}) {
       "question:reopened": (p: { questionId: string }) => setQuestions((qs) => sortQuestions(qs.map((q) => (q.id === p.questionId ? { ...q, isAnswered: false } : q)))),
       "question:pinned": (p: { questionId: string; isPinned: boolean }) => setQuestions((qs) => sortQuestions(qs.map((q) => (q.id === p.questionId ? { ...q, isPinned: p.isPinned } : q)))),
       "pace:updated": (p: PaceStats) => { if (p.slidePage === pageRef.current) setPace(p); },
-      "board:state_changed": (p: { isActive: boolean; isFrozen: boolean; mode?: BoardMode; prompt?: string | null }) => {
-        const modeChanged = !!p.mode && p.mode !== modeRef.current;
+      "board:state_changed": (p: { isActive: boolean; isFrozen: boolean; mode?: BoardMode; prompt?: string | null; ideaPage?: number; ideaPageCount?: number }) => {
+        const pageChanged = p.ideaPage !== undefined && p.ideaPage !== ideaPageRef.current;
+        const modeChanged = (!!p.mode && p.mode !== modeRef.current) || pageChanged;
         if (p.mode) modeRef.current = p.mode;
-        setState((st) => (st ? { ...st, isBoardActive: p.isActive, isBoardFrozen: p.isFrozen, boardMode: p.mode ?? st.boardMode, boardPrompt: p.prompt === undefined ? st.boardPrompt : p.prompt } : st));
+        if (p.ideaPage !== undefined) ideaPageRef.current = p.ideaPage;
+        setState((st) => (st ? {
+          ...st, isBoardActive: p.isActive, isBoardFrozen: p.isFrozen, boardMode: p.mode ?? st.boardMode, boardPrompt: p.prompt === undefined ? st.boardPrompt : p.prompt,
+          ideaPage: p.ideaPage ?? st.ideaPage, ideaPageCount: p.ideaPageCount ?? st.ideaPageCount,
+        } : st));
         if (modeChanged) { setStrokes([]); setStickies([]); }
         if (p.isActive) fetchBoard();
-        h.current.onBoardToggled?.(p.isActive);
+        const wasActive = boardActiveRef.current;
+        boardActiveRef.current = p.isActive;
+        if (wasActive !== p.isActive) h.current.onBoardToggled?.(p.isActive);
       },
       "board:stroke_broadcast": (p: { slidePage: number; stroke: BoardStroke; displayPseudonym: string }) => {
         if (p.slidePage === bp()) setStrokes((s) => (s.some((x) => x.id === p.stroke.id) ? s : [...s, { ...p.stroke, displayPseudonym: p.displayPseudonym }]));
@@ -167,6 +178,19 @@ export function useLiveSession(sessionCode: string, handlers: Handlers = {}) {
       setState((st) => (st ? { ...st, isBoardActive: isActive, isBoardFrozen: isFrozen, boardMode: mode ?? st.boardMode, boardPrompt: prompt === undefined ? st.boardPrompt : prompt } : st));
       const r = await emitAck("instructor:board_toggle", { sessionCode, isActive, isFrozen, mode, prompt });
       if (isActive) fetchBoard();
+      return r;
+    },
+    /** go to Idea Board page n (count + 1 = add a new blank page) */
+    gotoIdeaPage: async (page: number) => {
+      if (page === ideaPageRef.current) return { ok: true };
+      ideaPageRef.current = page;
+      setStrokes([]); setStickies([]);
+      setState((st) => (st ? { ...st, ideaPage: page, ideaPageCount: Math.max(st.ideaPageCount, page) } : st));
+      const r = await emitAck<{ ideaPage: number; ideaPageCount: number; prompt: string | null }>("instructor:idea_page", { sessionCode, page });
+      if (r.ok) {
+        setState((st) => (st ? { ...st, boardPrompt: r.prompt ?? null, ideaPageCount: r.ideaPageCount } : st));
+        fetchBoard();
+      }
       return r;
     },
     setBoardPrompt: (prompt: string | null) => {

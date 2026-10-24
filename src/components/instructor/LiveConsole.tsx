@@ -114,6 +114,9 @@ export function LiveConsole({ sessionCode, joinUrl, sessionId }: { sessionCode: 
       <main className="relative min-h-0 flex-1 p-4 pb-24">
         {state.isBoardActive && state.boardMode === "IDEAS" ? (
           <IdeaWall
+            page={state.ideaPage}
+            pageCount={state.ideaPageCount}
+            onPage={(n) => actions.gotoIdeaPage(n)}
             notes={stickies}
             strokes={strokes}
             onStroke={(st) => actions.drawStroke(st)}

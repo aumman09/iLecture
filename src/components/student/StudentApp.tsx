@@ -160,6 +160,9 @@ export function StudentApp({ sessionCode, studentName, slides }: { sessionCode: 
       {state.isBoardActive && state.boardMode === "IDEAS" ? (
         <div className="min-h-0 flex-1">
           <StudentIdeaBoard
+            key={`idea-${state.ideaPage}`}
+            page={state.ideaPage}
+            pageCount={state.ideaPageCount}
             prompt={state.boardPrompt}
             notes={stickies}
             strokes={strokes}

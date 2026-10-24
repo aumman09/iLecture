@@ -17,7 +17,8 @@ const PENS = ["#0F172A", "#990000", "#2563EB", "#16A34A"];
  *  ✍️ Write (default): tap anywhere → type → Post. The note appears at that spot on every screen.
  *  ✏️ Draw: draw lines / arrows to connect ideas.   ✋ Move: drag your own notes, scroll the board.
  */
-export function StudentIdeaBoard({ prompt, notes, strokes, frozen, onPost, onLike, onDelete, onStroke, onUndo, onMove, anonymous, onAnonymous }: {
+export function StudentIdeaBoard({ page = 1, pageCount = 1, prompt, notes, strokes, frozen, onPost, onLike, onDelete, onStroke, onUndo, onMove, anonymous, onAnonymous }: {
+  page?: number; pageCount?: number;
   prompt: string | null; notes: StickyNote[]; strokes: BoardStroke[]; frozen: boolean; anonymous: boolean;
   onPost: (text: string, color: StickyColor, at: { x: number; y: number }) => Promise<boolean>;
   onLike: (id: string, remove: boolean) => void; onDelete: (id: string) => void;
@@ -59,7 +60,10 @@ export function StudentIdeaBoard({ prompt, notes, strokes, frozen, onPost, onLik
     <div className="flex h-full flex-col">
       <div className="shrink-0 px-3 pt-2">
         <div className="rounded-2xl bg-mfu px-4 py-2.5 text-white shadow-sm">
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-white/70"><Lightbulb className="h-3.5 w-3.5" />Idea Board · บอร์ดความคิดเห็น</div>
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-white/70">
+            <Lightbulb className="h-3.5 w-3.5" />Idea Board · บอร์ดความคิดเห็น
+            {pageCount > 1 && <span className="ml-auto rounded-full bg-white/15 px-2 py-0.5 normal-case tracking-normal text-white">Page {page} / {pageCount}</span>}
+          </div>
           <div className="mt-0.5 text-base font-semibold leading-snug">{prompt || "Share your ideas with the class"}</div>
         </div>
         <div className="flex items-center justify-between gap-2 px-1 py-1.5 text-xs text-slate-500">

@@ -209,20 +209,38 @@ export function attachSocketServer(httpServer: HttpServer) {
       const isFrozen = isActive ? !!p.isFrozen : false;
       const mode = p.mode === "IDEAS" || p.mode === "SLIDE" ? p.mode : s.boardMode;
       const prompt = p.prompt === undefined ? s.boardPrompt : p.prompt ? String(p.prompt).trim().slice(0, 200) || null : null;
-      await prisma.classSession.update({ where: { id: s.id }, data: { isBoardActive: isActive, isBoardFrozen: isFrozen, boardMode: mode, boardPrompt: prompt } });
-      patchCache(s.sessionCode, { isBoardActive: isActive, isBoardFrozen: isFrozen, boardMode: mode, boardPrompt: prompt });
-      const page = boardPage({ boardMode: mode, currentSlidePage: s.currentSlidePage });
-      nsp.to(roomAll(s.sessionCode)).emit("board:state_changed", { isActive, isFrozen, mode, prompt, slidePage: page });
+      const prompts = { ...((s.ideaPrompts as Record<string, string | null>) ?? {}), [String(s.ideaPage)]: prompt };
+      await prisma.classSession.update({ where: { id: s.id }, data: { isBoardActive: isActive, isBoardFrozen: isFrozen, boardMode: mode, boardPrompt: prompt, ideaPrompts: prompts } });
+      patchCache(s.sessionCode, { isBoardActive: isActive, isBoardFrozen: isFrozen, boardMode: mode, boardPrompt: prompt, ideaPrompts: prompts });
+      const page = boardPage({ boardMode: mode, currentSlidePage: s.currentSlidePage, ideaPage: s.ideaPage });
+      nsp.to(roomAll(s.sessionCode)).emit("board:state_changed", { isActive, isFrozen, mode, prompt, slidePage: page, ideaPage: s.ideaPage, ideaPageCount: s.ideaPageCount });
       ack({ ok: true });
     }));
 
     socket.on("instructor:board_prompt", wrap<{ sessionCode: string; prompt: string | null }>(async (p, ack) => {
       const s = await ctx(p.sessionCode, { control: true });
       const prompt = p.prompt ? String(p.prompt).trim().slice(0, 200) || null : null;
-      await prisma.classSession.update({ where: { id: s.id }, data: { boardPrompt: prompt } });
-      patchCache(s.sessionCode, { boardPrompt: prompt });
+      const prompts = { ...((s.ideaPrompts as Record<string, string | null>) ?? {}), [String(s.ideaPage)]: prompt };
+      await prisma.classSession.update({ where: { id: s.id }, data: { boardPrompt: prompt, ideaPrompts: prompts } });
+      patchCache(s.sessionCode, { boardPrompt: prompt, ideaPrompts: prompts });
       nsp.to(roomAll(s.sessionCode)).emit("board:prompt", { prompt });
       ack({ ok: true });
+    }));
+
+    // Idea Board pages: go to page n (n = count + 1 adds a new blank page). Every screen follows.
+    socket.on("instructor:idea_page", wrap<{ sessionCode: string; page: number }>(async (p, ack) => {
+      const s = await ctx(p.sessionCode, { control: true });
+      const max = Math.min(20, s.ideaPageCount + 1);
+      const page = Math.min(max, Math.max(1, Math.round(Number(p.page) || 1)));
+      const ideaPageCount = Math.max(s.ideaPageCount, page);
+      const prompts = (s.ideaPrompts as Record<string, string | null>) ?? {};
+      const prompt = prompts[String(page)] ?? null;
+      await prisma.classSession.update({ where: { id: s.id }, data: { ideaPage: page, ideaPageCount, boardPrompt: prompt } });
+      patchCache(s.sessionCode, { ideaPage: page, ideaPageCount, boardPrompt: prompt });
+      nsp.to(roomAll(s.sessionCode)).emit("board:state_changed", {
+        isActive: s.isBoardActive, isFrozen: s.isBoardFrozen, mode: s.boardMode, prompt, slidePage: boardPage({ ...s, ideaPage: page }), ideaPage: page, ideaPageCount,
+      });
+      ack({ ok: true, ideaPage: page, ideaPageCount, prompt });
     }));
 
     socket.on("instructor:board_clear", wrap<{ sessionCode: string; slidePage: number }>(async (p, ack) => {
@@ -351,7 +369,7 @@ export function attachSocketServer(httpServer: HttpServer) {
       if (!s.isBoardActive) throw new Error("Board is closed");
       if (s.isBoardFrozen && !data.isController) throw new Error("Board is frozen");
       const page = boardPage(s);
-      const ideas = page === 0;
+      const ideas = page <= 0;
       const text = String(p.text ?? "").trim().slice(0, ideas ? 280 : 140);
       if (!text) throw new Error("Empty note");
       if (ideas && !data.isController && moderateText(text)) throw new Error("Please keep it respectful 🙏");

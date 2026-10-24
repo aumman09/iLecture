@@ -3,14 +3,14 @@ import { generatePseudonym } from "./pseudonym";
 import { identityMap, shortName } from "./identity";
 import { env } from "./env";
 import type { AppUser } from "./auth";
-import { IDEA_BOARD_PAGE, type BoardMode } from "@/types";
+import { ideaSlidePage, type BoardMode } from "@/types";
 import type { BoardItemsDTO, PaceStats, QuestionDTO, SessionStateDTO, SlideMetadataDTO, StickyColor, Stroke } from "@/types";
 
 export const STAFF_BOARD_ID = "STAFF";
 
-/** Board "page" the class is currently writing on: the live slide, or 0 for the blank Idea Board. */
-export function boardPage(s: { boardMode: string; currentSlidePage: number }) {
-  return s.boardMode === "IDEAS" ? IDEA_BOARD_PAGE : s.currentSlidePage;
+/** Board "page" the class is writing on: the live slide, or ≤ 0 for Idea Board pages (page 1 → 0, 2 → -1 …). */
+export function boardPage(s: { boardMode: string; currentSlidePage: number; ideaPage?: number }) {
+  return s.boardMode === "IDEAS" ? ideaSlidePage(s.ideaPage ?? 1) : s.currentSlidePage;
 }
 
 export async function getSessionByCode(code: string) {
@@ -51,6 +51,8 @@ export async function buildSessionState(s: FullSession, user: AppUser, activeCou
     isSilentMode: s.isSilentMode,
     boardMode: (s.boardMode === "IDEAS" ? "IDEAS" : "SLIDE") as BoardMode,
     boardPrompt: s.boardPrompt,
+    ideaPage: s.ideaPage,
+    ideaPageCount: s.ideaPageCount,
     courseCode: s.section.course.courseCode,
     courseName: s.section.course.courseNameEn,
     activeCount,

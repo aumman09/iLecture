@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Eraser, Eye, EyeOff, Hand, Heart, LayoutGrid, Lightbulb, Lock, LockOpen, PenLine, Pencil, Sparkles, StickyNote as StickyIcon, Type, Undo2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Expand, FilePlus2, Minimize, Eraser, Eye, EyeOff, Hand, Heart, LayoutGrid, Lightbulb, Lock, LockOpen, PenLine, Pencil, Sparkles, StickyNote as StickyIcon, Type, Undo2, X } from "lucide-react";
 import { FreeBoard, type FreeTool } from "@/components/shared/FreeBoard";
 import type { BoardStroke } from "@/components/shared/BoardSurface";
 import { Modal } from "@/components/ui/Modal";
@@ -25,13 +25,36 @@ const NOTE_COLORS: StickyColor[] = ["amber", "blue", "emerald", "rose"];
  * everyone (instructor too) can draw lines to connect ideas, and the instructor can drag any note.
  * "List" view shows the same notes as a sortable masonry wall for reading.
  */
-export function IdeaWall({ notes, strokes, prompt, frozen, sessionCode, onPrompt, onFreeze, onClear, onDelete, onLike, onStroke, onUndo, onMove, onPost }: {
+export function IdeaWall({ notes, strokes, prompt, frozen, sessionCode, page, pageCount, onPage, onPrompt, onFreeze, onClear, onDelete, onLike, onStroke, onUndo, onMove, onPost }: {
   notes: StickyNote[]; strokes: BoardStroke[]; prompt: string | null; frozen: boolean; sessionCode: string;
+  page: number; pageCount: number; onPage: (n: number) => void;
   onPrompt: (p: string | null) => void; onFreeze: (f: boolean) => void; onClear: () => void; onDelete: (id: string) => void; onLike: (id: string, remove: boolean) => void;
   onStroke: (s: Stroke) => void; onUndo: () => void; onMove: (id: string, x: number, y: number) => void;
   onPost: (text: string, color: StickyColor, at: { x: number; y: number }) => Promise<boolean>;
 }) {
   const [view, setView] = useState<"board" | "list">("board");
+  const [full, setFull] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Full screen: real browser full screen where supported, plus a fixed overlay (works on iPad too)
+  const toggleFull = () => {
+    if (!full) {
+      setFull(true);
+      document.documentElement.requestFullscreen?.().catch(() => undefined);
+    } else {
+      setFull(false);
+      if (document.fullscreenElement) document.exitFullscreen?.().catch(() => undefined);
+    }
+  };
+  useEffect(() => {
+    const onFs = () => { if (!document.fullscreenElement) setFull(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setFull(false); };
+    document.addEventListener("fullscreenchange", onFs);
+    window.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("fullscreenchange", onFs); window.removeEventListener("keydown", onKey); };
+  }, []);
+  // switching page: show that page's question, or open the editor if the page has none yet
+  useEffect(() => { setEditing(!prompt); }, [page, prompt]);
   const [boardTool, setBoardTool] = useState<FreeTool>("move");
   const [pen, setPen] = useState(PENS[1]);
   const [placing, setPlacing] = useState<{ x: number; y: number } | null>(null);
@@ -61,10 +84,19 @@ export function IdeaWall({ notes, strokes, prompt, frozen, sessionCode, onPrompt
   const save = () => { onPrompt(draft.trim() || null); setEditing(false); };
   const tool = "flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-slate-600 hover:bg-slate-100";
 
+  const pager = (
+    <div className="flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
+      <button onClick={() => onPage(page - 1)} disabled={page <= 1} className="flex h-8 w-7 items-center justify-center rounded-md text-slate-600 hover:bg-white disabled:opacity-30" aria-label="Previous page"><ChevronLeft className="h-4 w-4" /></button>
+      <span className="px-1 text-xs font-semibold text-slate-700">Page {page} / {pageCount}</span>
+      <button onClick={() => onPage(page + 1)} disabled={page >= pageCount} className="flex h-8 w-7 items-center justify-center rounded-md text-slate-600 hover:bg-white disabled:opacity-30" aria-label="Next page"><ChevronRight className="h-4 w-4" /></button>
+      <button onClick={() => onPage(pageCount + 1)} disabled={pageCount >= 20} className="flex h-8 items-center gap-1 rounded-md bg-white px-2 text-xs font-semibold text-mfu shadow-sm hover:bg-mfu/5 disabled:opacity-40" title="Add a new blank page"><FilePlus2 className="h-4 w-4" />New page</button>
+    </div>
+  );
+
   return (
-    <div className="flex h-full flex-col">
+    <div ref={rootRef} className={cn("flex h-full flex-col", full && "fixed inset-0 z-[80] bg-slate-100 p-3")}>
       {/* prompt */}
-      <div className="mb-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+      <div className={cn("mb-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm", full && "mb-2 py-2")}>
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-mfu"><Lightbulb className="h-4 w-4" />Idea Board · บอร์ดความคิดเห็น</div>
         {editing ? (
           <div className="mt-2">
@@ -96,6 +128,7 @@ export function IdeaWall({ notes, strokes, prompt, frozen, sessionCode, onPrompt
       {/* toolbar */}
       <div className="mb-3 flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 bg-white px-2 py-1 shadow-sm">
         <span className="px-2 text-sm font-semibold text-slate-800">{notes.length} ideas</span>
+        {pager}
         <div className="flex rounded-lg bg-slate-100 p-0.5">
           <button onClick={() => setView("board")} className={cn("flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium", view === "board" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500")}><StickyIcon className="h-4 w-4" />Board</button>
           <button onClick={() => setView("list")} className={cn("flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium", view === "list" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500")}><LayoutGrid className="h-4 w-4" />List</button>
@@ -120,7 +153,8 @@ export function IdeaWall({ notes, strokes, prompt, frozen, sessionCode, onPrompt
         <button className={tool} onClick={() => setShowNames((v) => !v)}>{showNames ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}Names</button>
         <button className={cn(tool, frozen && "bg-slate-900 text-white hover:bg-slate-800")} onClick={() => onFreeze(!frozen)}>{frozen ? <Lock className="h-4 w-4" /> : <LockOpen className="h-4 w-4" />}{frozen ? "Closed" : "Close posting"}</button>
         <button className={cn(tool, "text-rose-600 hover:bg-rose-50")} onClick={() => { if (confirm("Remove all ideas from the board?")) onClear(); }}><Eraser className="h-4 w-4" />Clear</button>
-        <span className="ml-auto pr-2 text-xs text-slate-500">Students post from their phones · PIN <span className="font-mono font-bold text-slate-800">{sessionCode}</span></span>
+        <span className="ml-auto pr-1 text-xs text-slate-500">PIN <span className="font-mono font-bold text-slate-800">{sessionCode}</span></span>
+        <button className={cn(tool, "bg-slate-900 text-white hover:bg-slate-800")} onClick={toggleFull} title="Full screen (Esc to exit)">{full ? <Minimize className="h-4 w-4" /> : <Expand className="h-4 w-4" />}{full ? "Exit full screen" : "Full screen"}</button>
       </div>
 
       {view === "board" && (

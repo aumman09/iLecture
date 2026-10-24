@@ -39,8 +39,9 @@ export interface Stroke {
 }
 
 export type BoardMode = "SLIDE" | "IDEAS";
-/** Board items of the blank Idea Board are stored with slidePage = 0. */
+/** Board items of Idea Board page n are stored with slidePage = -(n - 1)  (page 1 → 0, page 2 → -1 …). */
 export const IDEA_BOARD_PAGE = 0;
+export const ideaSlidePage = (n: number) => -(Math.max(1, n) - 1);
 
 export interface StickyNote {
   id: string;
@@ -88,6 +89,8 @@ export interface SessionStateDTO {
   isSilentMode: boolean;
   boardMode: BoardMode;
   boardPrompt: string | null;
+  ideaPage: number;
+  ideaPageCount: number;
   courseCode: string;
   courseName: string;
   activeCount: number;

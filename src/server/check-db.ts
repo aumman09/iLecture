@@ -23,7 +23,7 @@ export async function checkDatabase(): Promise<boolean> {
   }
   try {
     const rows = await prisma.$queryRawUnsafe<{ ok: boolean }[]>(
-      `SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'session_attendances' AND column_name = 'is_anonymous') AS ok`
+      `SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'class_sessions' AND column_name = 'idea_page') AS ok`
     );
     if (!rows[0]?.ok) {
       console.error("\n  ✖ The database schema is out of date (new migrations not applied).");

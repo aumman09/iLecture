@@ -61,7 +61,7 @@ Phones must reach your computer over the same Wi-Fi:
 - Keyboard / presentation clicker: `→ ← Space PageUp/PageDown` change slides, `B` board on slide, `I` Idea Board, `Q` Q&A, `S` silent, `F` full screen.
 - **Open Class Board** gives two choices:
   - *Draw on this slide* — everyone annotates the current slide + sticky notes.
-  - *Blank Idea Board* (บอร์ดความคิดเห็น) — a blank whiteboard for the whole class: set a question; students **tap anywhere to write** a note at that spot, **draw lines/arrows to connect ideas**, and drag their own notes; the instructor can draw, write and move any note (mind-map style). Tap a note to ♥ or delete. **List** view shows the same notes as a sortable wall (Newest / Most ♥). Hide names, close posting, clear. Shortcut: `I`.
+  - *Blank Idea Board* (บอร์ดความคิดเห็น) — a blank whiteboard for the whole class: set a question; students **tap anywhere to write** a note at that spot, **draw lines/arrows to connect ideas**, and drag their own notes; the instructor can draw, write and move any note (mind-map style). Tap a note to ♥ or delete. **List** view shows the same notes as a sortable wall (Newest / Most ♥). Hide names, close posting, clear. **Multiple pages** (‹ Page 2 / 3 › · **New page**) — each page keeps its own notes, drawings and question, and every student device follows the instructor's page. **Full screen** button for the projector (works on iPad too; Esc to exit). Shortcut: `I`.
 - Silent Focus Mode (default ON): new questions only bump the red badge; OFF shows a 3.5 s toast.
 - End Class → exit ticket on every phone → auto-closes after `EXIT_TICKET_WINDOW_SEC` (default 180 s) or as soon as everyone has answered → AI muddiest-point summary, risk scores and teaching evaluation are recalculated.
 
