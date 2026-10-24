@@ -12,6 +12,7 @@ import { startWorkers } from "./src/server/workers/start";
 import { ensureRedisOrFallback } from "./src/lib/redis";
 import { ensurePdfWorker } from "./src/server/ensure-assets";
 import { checkDatabase } from "./src/server/check-db";
+import { lanAddress } from "./src/lib/lan";
 
 ensurePdfWorker();
 
@@ -20,7 +21,8 @@ if (process.env.AUTH_TRUST_HOST === undefined) process.env.AUTH_TRUST_HOST = "tr
 
 const dev = process.env.NODE_ENV !== "production";
 const port = Number(process.env.PORT || 3000);
-const hostname = process.env.HOSTNAME || "0.0.0.0";
+// listen on all interfaces so phones / iPads on the same Wi-Fi can connect (macOS may ask to allow it once)
+const hostname = process.env.LISTEN_HOST || "0.0.0.0";
 
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();
@@ -36,7 +38,9 @@ Promise.all([app.prepare(), ensureRedisOrFallback(), checkDatabase()]).then(() =
   attachSocketServer(server);
   if (process.env.RUN_WORKERS_IN_SERVER !== "false") startWorkers();
   server.listen(port, hostname, () => {
+    const ip = lanAddress();
     console.log(`\n  iLecture MFU ready → http://localhost:${port}  (${dev ? "development" : "production"})`);
+    if (ip) console.log(`  Phones / iPads on the same Wi-Fi → http://${ip}:${port}`);
     if (process.env.DEMO_MODE === "true") console.log("  Demo mode ON — one-tap demo login at /login\n");
   });
 });

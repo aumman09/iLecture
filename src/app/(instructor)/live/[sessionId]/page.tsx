@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { env } from "@/lib/env";
 import { canControl } from "@/lib/session-service";
+import { phoneReachable } from "@/lib/lan";
 import { LiveConsole } from "@/components/instructor/LiveConsole";
 
 export const dynamic = "force-dynamic";
@@ -24,5 +25,6 @@ function publicBaseUrl() {
   const h = headers();
   const host = h.get("x-forwarded-host") ?? h.get("host");
   const proto = h.get("x-forwarded-proto") ?? "http";
-  return host ? `${proto}://${host}` : env.appUrl;
+  // opened as localhost on the instructor's laptop → put the laptop's Wi-Fi IP in the QR so phones can reach it
+  return phoneReachable(host ? `${proto}://${host}` : env.appUrl);
 }

@@ -2,7 +2,7 @@
   "name": "ilecture-mfu",
   "version": "2.0.0",
   "private": true,
-  "description": "iLecture MFU — Zero-Click Smart Classroom, Live Backchannel & Early Warning Retention System",
+  "description": "iLecture MFU \u2014 Zero-Click Smart Classroom, Live Backchannel & Early Warning Retention System",
   "scripts": {
     "dev": "tsx watch --clear-screen=false --ignore ./src/app --ignore ./src/components server.ts",
     "build": "next build",
@@ -15,7 +15,9 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma migrate reset --force",
     "setup": "node scripts/copy-pdf-worker.mjs && prisma generate",
-    "postinstall": "node scripts/copy-pdf-worker.mjs && prisma generate"
+    "postinstall": "node scripts/copy-pdf-worker.mjs && prisma generate",
+    "predev": "prisma migrate deploy && prisma generate",
+    "prestart": "prisma migrate deploy"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
