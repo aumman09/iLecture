@@ -13,10 +13,11 @@ import { RetentionTable } from "./RetentionTable";
 import { EvalSummary } from "./EvalSummary";
 import { SessionReport } from "./SessionReport";
 import { ParticipationTable } from "./ParticipationTable";
+import { ClassHistory } from "./ClassHistory";
 
 export interface SectionVM { id: string; courseId: string; courseCode: string; courseName: string; semester: string; sectionNumber: number; googleClassroomId: string | null; students: number; sessionsHeld: number; critical: number; moderate: number }
 export interface DeckVM { id: string; courseId: string; title: string; totalPages: number; isProcessed: boolean; syncedAt: string }
-export interface SessionVM { id: string; sectionId: string; code: string; title: string; status: string; startedAt: string; attended: number; feedbacks: number; questions: number; avgComprehension: number | null; topTopic: string | null }
+export interface SessionVM { id: string; sectionId: string; code: string; title: string; status: string; startedAt: string; endedAt?: string | null; ideas?: number; attended: number; feedbacks: number; questions: number; avgComprehension: number | null; topTopic: string | null }
 
 type Tab = "teach" | "warning" | "participation" | "evaluation" | "reports";
 
@@ -136,6 +137,8 @@ export function Dashboard({ user, sections, decks, sessions, mockClassroom, init
                     </Card>
                   </div>
                 </div>
+
+                <ClassHistory sessions={sessions.filter((s) => s.sectionId === section.id)} />
               </div>
             )}
 

@@ -65,6 +65,10 @@ Phones must reach your computer over the same Wi-Fi:
 - Silent Focus Mode (default ON): new questions only bump the red badge; OFF shows a 3.5 s toast.
 - End Class → exit ticket on every phone → auto-closes after `EXIT_TICKET_WINDOW_SEC` (default 180 s) or as soon as everyone has answered → AI muddiest-point summary, risk scores and teaching evaluation are recalculated.
 
+### Class history (every class, every week)
+- Dashboard → **Teach** lists every class of the selected course section, grouped by teaching week (Week 1 = week of the first class), with attendance, questions, ideas, average ★ and the muddiest topic; searchable.
+- **Open record** shows a read-only archive of that class: Overview (muddiest points, ratings, pace per slide), all Questions (with merged variants and originals), every Idea Board page exactly as it was (board or list view, CSV export), drawings on slides, and per-student Participation for that class.
+
 ### Student — mobile / iPad (`/join/[code]`) — designed for minimal taps
 - **Scan QR → sign in once (session lasts the semester) → in the room.** No PIN typing; `/join` also shows a big "Live now" button for enrolled courses.
 - The slide follows the instructor automatically (students can swipe back with ‹ › and tap "Back to live"; full-screen + pinch zoom).

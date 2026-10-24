@@ -30,9 +30,9 @@ const COLS: { key: keyof Row; label: string }[] = [
 ];
 
 /** Instructor-only participation analytics — real identities, including posts made with "hide my name". */
-export function ParticipationTable({ sectionId }: { sectionId: string }) {
+export function ParticipationTable({ sectionId, fixedSessionId }: { sectionId: string; fixedSessionId?: string }) {
   const [data, setData] = useState<Resp | null>(null);
-  const [sessionId, setSessionId] = useState("");
+  const [sessionId, setSessionId] = useState(fixedSessionId ?? "");
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<keyof Row>("score");
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +65,7 @@ export function ParticipationTable({ sectionId }: { sectionId: string }) {
       <Card>
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-4 py-3">
           <h2 className="text-sm font-semibold text-slate-900">Participation</h2>
-          <select value={sessionId} onChange={(e) => setSessionId(e.target.value)} className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs">
+          <select value={sessionId} onChange={(e) => setSessionId(e.target.value)} disabled={!!fixedSessionId} className={cn("h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs", fixedSessionId && "hidden")}>
             <option value="">All sessions</option>
             {data?.sessions.map((s) => <option key={s.id} value={s.id}>{new Date(s.startedAt).toLocaleDateString()} · {s.title}</option>)}
           </select>

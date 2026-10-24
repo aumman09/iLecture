@@ -18,8 +18,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
     prisma.classSession.findMany({
       where: { sectionId: { in: sections.map((s) => s.id) } },
       orderBy: { startedAt: "desc" },
-      take: 40,
-      include: { aiSummary: true, _count: { select: { attendances: true, feedbacks: true, questions: true } } },
+      take: 500, // the whole teaching history of every section (kept for every week)
+      include: { aiSummary: true, _count: { select: { attendances: true, feedbacks: true, questions: true, boardItems: { where: { itemType: "STICKY_NOTE" } } } } },
     }),
     prisma.studentRiskMetric.groupBy({ by: ["sectionId", "riskLevel"], where: { sectionId: { in: sections.map((s) => s.id) } }, _count: true }),
     user.role === "INSTRUCTOR" ? isMockMode(user.id) : Promise.resolve(false),
@@ -52,6 +52,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
         title: s.sessionTitle,
         status: s.status,
         startedAt: s.startedAt.toISOString(),
+        endedAt: s.endedAt?.toISOString() ?? null,
+        ideas: s._count.boardItems,
         attended: s._count.attendances,
         feedbacks: s._count.feedbacks,
         questions: s._count.questions,

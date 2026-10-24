@@ -274,7 +274,7 @@ function PostClassPanel({ sessionId, status, progress, closesAt, summaryReady, o
               ))}
             </ol>
             <div className="mt-6 flex justify-end gap-2">
-              <Link href={`/dashboard?tab=reports&session=${sessionId}`}><Button variant="secondary"><BarChart3 className="h-4 w-4" /> Full report</Button></Link>
+              <Link href={`/dashboard/history/${sessionId}`}><Button variant="secondary"><BarChart3 className="h-4 w-4" /> Full class record</Button></Link>
               <Link href="/dashboard"><Button>Back to dashboard</Button></Link>
             </div>
           </>
