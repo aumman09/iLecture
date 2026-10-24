@@ -80,7 +80,19 @@ async function userFromHandshake(socket: Socket): Promise<AppUser | null> {
 export function attachSocketServer(httpServer: HttpServer) {
   const io = new Server(httpServer, {
     path: "/socket.io",
-    cors: { origin: env.appUrl, credentials: true },
+    // Same-origin only: the page's Origin must match the host it was served from (localhost, LAN IP or
+    // domain) or NEXTAUTH_URL. Blocks cross-site WebSocket hijacking without breaking phones on Wi-Fi.
+    allowRequest: (req, cb) => {
+      const origin = req.headers.origin;
+      if (!origin) return cb(null, true); // non-browser clients still need a valid session cookie
+      try {
+        const o = new URL(origin);
+        const host = (req.headers["x-forwarded-host"] as string | undefined) ?? req.headers.host;
+        cb(null, o.host === host || origin === env.appUrl);
+      } catch {
+        cb(null, false);
+      }
+    },
     pingInterval: 20000,
     pingTimeout: 25000,
     connectionStateRecovery: { maxDisconnectionDuration: 2 * 60 * 1000 },
