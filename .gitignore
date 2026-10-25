@@ -8,3 +8,4 @@ public/pdfjs/
 qa-work/
 qa-report.*
 qa-findings.sarif
+qa-report/
