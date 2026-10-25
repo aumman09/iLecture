@@ -5,3 +5,6 @@ node_modules
 storage/
 public/pdfjs/
 *.tsbuildinfo
+qa-work/
+qa-report.*
+qa-findings.sarif
